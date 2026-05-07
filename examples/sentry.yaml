@@ -1,0 +1,25 @@
+version: "1.0"
+default_catalog: localfs
+
+policies:
+  - name: finance-compliance
+    target_namespace: "finance.*"
+    min_file_size_mb: 128
+    max_manifest_files: 500
+    max_snapshot_age: 30d
+    delete_file_ratio_warn: 0.10
+    delete_file_ratio_fail: 0.25
+    min_health_score: 75
+    fail_on_orphans: false
+    fail_on_pii_untagged: true
+    pii_scan: true
+    write_pattern: auto
+
+  - name: raw-zone-relaxed
+    target_namespace: "raw.*"
+    min_file_size_mb: 32
+    max_snapshot_age: 7d
+    write_pattern: streaming
+    min_health_score: 50
+    pii_scan: true
+    fail_on_pii_untagged: true
