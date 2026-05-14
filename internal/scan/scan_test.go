@@ -56,7 +56,7 @@ const manifestEntrySchema = `{
   ]
 }`
 
-func writeAvro(t *testing.T, path, schema string, recs []map[string]any) {
+func writeAvro(t testing.TB, path, schema string, recs []map[string]any) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
@@ -83,7 +83,7 @@ func writeAvro(t *testing.T, path, schema string, recs []map[string]any) {
 // buildTableFixture writes a minimal v2 Iceberg table layout to disk and
 // returns the catalog root. dataFileSize is the size, in bytes, attributed
 // to each data file in the manifest entry.
-func buildTableFixture(t *testing.T, dataFiles, deleteFiles int, dataFileSize int64) string {
+func buildTableFixture(t testing.TB, dataFiles, deleteFiles int, dataFileSize int64) string {
 	t.Helper()
 	root := t.TempDir()
 	tableDir := filepath.Join(root, "finance", "transactions")

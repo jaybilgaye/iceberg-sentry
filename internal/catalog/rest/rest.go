@@ -22,6 +22,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/jaybilgaye/iceberg-sentry/internal/catalog"
 )
@@ -32,6 +34,16 @@ type REST struct {
 	client     *http.Client
 	prefix     string
 	authHeader string
+
+	// OAuth2 client-credentials grant; populated by WithOAuth2ClientCredentials.
+	// authHeader is regenerated automatically once the token is fetched.
+	oauthMu       sync.Mutex
+	oauthTokenURL string
+	oauthClientID string
+	oauthSecret   string
+	oauthScope    string
+	oauthToken    string
+	oauthExpires  time.Time
 }
 
 // Option configures the adapter.
@@ -59,6 +71,22 @@ func WithBearerToken(tok string) Option {
 // WithAuthHeader sets an arbitrary Authorization header value.
 func WithAuthHeader(h string) Option {
 	return func(r *REST) { r.authHeader = h }
+}
+
+// WithOAuth2ClientCredentials enables OAuth2 client_credentials grant flow.
+// Polaris and Unity REST both follow RFC 6749; the adapter caches the token
+// and refreshes it 30s before expiry. Scope is optional.
+func WithOAuth2ClientCredentials(tokenURL, clientID, clientSecret string) Option {
+	return func(r *REST) {
+		r.oauthTokenURL = tokenURL
+		r.oauthClientID = clientID
+		r.oauthSecret = clientSecret
+	}
+}
+
+// WithOAuth2Scope sets the OAuth2 scope (default empty).
+func WithOAuth2Scope(scope string) Option {
+	return func(r *REST) { r.oauthScope = scope }
 }
 
 // New builds an Iceberg REST catalog client.
@@ -93,7 +121,13 @@ func (r *REST) do(ctx context.Context, method, u string, out any) error {
 		return err
 	}
 	req.Header.Set("Accept", "application/json")
-	if r.authHeader != "" {
+	if r.oauthTokenURL != "" {
+		tok, err := r.ensureOAuthToken(ctx)
+		if err != nil {
+			return err
+		}
+		req.Header.Set("Authorization", "Bearer "+tok)
+	} else if r.authHeader != "" {
 		req.Header.Set("Authorization", r.authHeader)
 	}
 	resp, err := r.client.Do(req)
@@ -172,4 +206,54 @@ func (r *REST) ListTables(ctx context.Context, namespace string) ([]catalog.Tabl
 		})
 	}
 	return out, nil
+}
+
+// ensureOAuthToken returns a cached bearer token, refreshing 30s before
+// expiry. RFC 6749 client_credentials grant.
+func (r *REST) ensureOAuthToken(ctx context.Context) (string, error) {
+	r.oauthMu.Lock()
+	defer r.oauthMu.Unlock()
+	if r.oauthToken != "" && time.Until(r.oauthExpires) > 30*time.Second {
+		return r.oauthToken, nil
+	}
+	form := url.Values{}
+	form.Set("grant_type", "client_credentials")
+	form.Set("client_id", r.oauthClientID)
+	form.Set("client_secret", r.oauthSecret)
+	if r.oauthScope != "" {
+		form.Set("scope", r.oauthScope)
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.oauthTokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	resp, err := r.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("oauth2 token: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode >= 400 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return "", fmt.Errorf("oauth2 token status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	var tr struct {
+		AccessToken string `json:"access_token"`
+		TokenType   string `json:"token_type"`
+		ExpiresIn   int    `json:"expires_in"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tr); err != nil {
+		return "", fmt.Errorf("oauth2 decode: %w", err)
+	}
+	if tr.AccessToken == "" {
+		return "", errors.New("oauth2: empty access_token in response")
+	}
+	r.oauthToken = tr.AccessToken
+	if tr.ExpiresIn > 0 {
+		r.oauthExpires = time.Now().Add(time.Duration(tr.ExpiresIn) * time.Second)
+	} else {
+		r.oauthExpires = time.Now().Add(1 * time.Hour)
+	}
+	return r.oauthToken, nil
 }

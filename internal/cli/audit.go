@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +18,7 @@ import (
 	"github.com/jaybilgaye/iceberg-sentry/internal/catalog/rest"
 	"github.com/jaybilgaye/iceberg-sentry/internal/exitcode"
 	"github.com/jaybilgaye/iceberg-sentry/internal/health"
+	"github.com/jaybilgaye/iceberg-sentry/internal/metrics"
 	"github.com/jaybilgaye/iceberg-sentry/internal/output"
 	"github.com/jaybilgaye/iceberg-sentry/internal/policy"
 	"github.com/jaybilgaye/iceberg-sentry/internal/scan"
@@ -26,7 +29,13 @@ type auditFlags struct {
 	catalogKind string
 	catalogRoot string
 	hiveAddr    string
+	hivePrincipal string
+	hiveKeytab  string
 	restURL     string
+	restToken   string
+	restClientID     string
+	restClientSecret string
+	restTokenURL string
 	glueCatalog string
 	hdfsURL     string
 	tableID     string
@@ -35,6 +44,10 @@ type auditFlags struct {
 	policyPath  string
 	format      string
 	failOn      string
+	pushGateway string
+	pushJob     string
+	pushInstance string
+	atlasOutput string
 	pathStyle   bool
 }
 
@@ -63,6 +76,16 @@ with --namespace every Iceberg table under the namespace is scored.`,
 	flags.StringVar(&f.policyPath, "policy", "", "path to sentry.yaml")
 	flags.StringVar(&f.format, "format", "text", "output format: text|json|sarif")
 	flags.StringVar(&f.failOn, "fail-on", "critical", "minimum severity that exits non-zero: warn|critical|never")
+	flags.StringVar(&f.pushGateway, "push-gateway", "", "Prometheus push-gateway URL (used with --format prometheus)")
+	flags.StringVar(&f.pushJob, "push-job", "iceberg-sentry", "job label for push-gateway")
+	flags.StringVar(&f.pushInstance, "push-instance", "", "instance label for push-gateway (optional)")
+	flags.StringVar(&f.atlasOutput, "atlas-output", "", "write Atlas/UC bulk-import payload of health findings to this path (use - for stdout)")
+	flags.StringVar(&f.restToken, "rest-token", "", "bearer token for the REST catalog (defaults to $SENTRY_REST_TOKEN)")
+	flags.StringVar(&f.restClientID, "rest-oauth-client-id", "", "OAuth2 client_id for REST catalog token exchange")
+	flags.StringVar(&f.restClientSecret, "rest-oauth-client-secret", "", "OAuth2 client_secret for REST catalog token exchange")
+	flags.StringVar(&f.restTokenURL, "rest-oauth-token-url", "", "OAuth2 token endpoint URL (Polaris/Tabular/Unity)")
+	flags.StringVar(&f.hivePrincipal, "hive-principal", "", "Kerberos service principal (e.g. hive/hms.example.com@EXAMPLE.COM)")
+	flags.StringVar(&f.hiveKeytab, "hive-keytab", "", "path to Kerberos keytab")
 	flags.BoolVar(&f.pathStyle, "s3-path-style", false, "use S3 path-style addressing (MinIO/LocalStack)")
 	return cmd
 }
@@ -120,6 +143,7 @@ func runAudit(ctx context.Context, stdout, stderr io.Writer, f *auditFlags) erro
 		engine.Branch = f.branch
 	}
 	worst := exitcode.OK
+	reports := make([]health.Report, 0, len(ids))
 	for _, id := range ids {
 		t := thresholds
 		if policyFile != nil {
@@ -137,15 +161,84 @@ func runAudit(ctx context.Context, stdout, stderr io.Writer, f *auditFlags) erro
 			worst = maxInt(worst, exitcode.ConnectionFail)
 			continue
 		}
-		if err := output.Render(stdout, result.Report, fmtKind); err != nil {
+		reports = append(reports, result.Report)
+		worst = maxInt(worst, exitFromReport(result.Report, f.failOn))
+	}
+
+	if fmtKind == output.FormatPrometheus {
+		var buf bytes.Buffer
+		if err := metrics.Render(&buf, reports...); err != nil {
 			return err
 		}
-		worst = maxInt(worst, exitFromReport(result.Report, f.failOn))
+		if f.pushGateway != "" {
+			if err := metrics.Push(ctx, f.pushGateway, f.pushJob, f.pushInstance, buf.Bytes()); err != nil {
+				return &codedError{code: exitcode.ConnectionFail, err: err}
+			}
+		} else {
+			if _, err := stdout.Write(buf.Bytes()); err != nil {
+				return err
+			}
+		}
+	} else {
+		for _, r := range reports {
+			if err := output.Render(stdout, r, fmtKind); err != nil {
+				return err
+			}
+		}
+	}
+	if f.atlasOutput != "" {
+		if err := writeAtlasHealth(f.atlasOutput, reports); err != nil {
+			return &codedError{code: exitcode.ConfigError, err: err}
+		}
 	}
 	if worst != exitcode.OK {
 		return &codedError{code: worst}
 	}
 	return nil
+}
+
+// writeAtlasHealth emits an Atlas/UC bulk-import-shaped payload describing
+// the per-table health summary. Companion to the pii Atlas payload — both
+// follow the same envelope (review_required + findings array).
+func writeAtlasHealth(path string, reports []health.Report) error {
+	type finding struct {
+		Table         string   `json:"table"`
+		Score         int      `json:"health_score"`
+		MaxScore      int      `json:"max_score"`
+		WorstSeverity string   `json:"worst_severity"`
+		WritePattern  string   `json:"write_pattern,omitempty"`
+		FailedDims    []string `json:"failed_dimensions,omitempty"`
+		RecommendTag  string   `json:"recommended_tag"`
+	}
+	out := struct {
+		ReviewRequired bool      `json:"review_required"`
+		Findings       []finding `json:"findings"`
+	}{ReviewRequired: true}
+	for _, r := range reports {
+		f := finding{
+			Table:         r.TableID,
+			Score:         r.Score,
+			MaxScore:      r.MaxScore,
+			WorstSeverity: string(r.WorstSeverity),
+			WritePattern:  r.WritePattern,
+			RecommendTag:  "HEALTH_" + string(r.WorstSeverity),
+		}
+		for _, d := range r.Dimensions {
+			if d.Severity == health.SeverityCritical || d.Severity == health.SeverityWarning {
+				f.FailedDims = append(f.FailedDims, d.Name)
+			}
+		}
+		out.Findings = append(out.Findings, f)
+	}
+	body, err := json.MarshalIndent(out, "", "  ")
+	if err != nil {
+		return err
+	}
+	if path == "-" {
+		fmt.Println(string(body))
+		return nil
+	}
+	return writeFile(path, body)
 }
 
 func buildCatalogFromAudit(ctx context.Context, f *auditFlags) (catalog.Catalog, error) {
@@ -170,12 +263,36 @@ func buildCatalogFromAudit(ctx context.Context, f *auditFlags) (catalog.Catalog,
 		if err != nil {
 			return nil, fmt.Errorf("--hive: %w", err)
 		}
-		return hive.New(host, port), nil
-	case "rest":
+		opts := []hive.Option{}
+		if f.hivePrincipal != "" {
+			if f.hiveKeytab == "" {
+				return nil, errors.New("--hive-keytab is required when --hive-principal is set")
+			}
+			tr, err := hive.NewKerberosTransport(host, port, f.hivePrincipal, f.hiveKeytab)
+			if err != nil {
+				return nil, fmt.Errorf("kerberos: %w", err)
+			}
+			opts = append(opts, hive.WithTransport(tr))
+		}
+		return hive.New(host, port, opts...), nil
+	case "rest", "polaris", "unity":
 		if f.restURL == "" {
 			return nil, errors.New("--rest is required for the rest catalog")
 		}
-		return rest.New(f.restURL), nil
+		restOpts := []rest.Option{}
+		token := f.restToken
+		if token == "" {
+			token = os.Getenv("SENTRY_REST_TOKEN")
+		}
+		if token != "" {
+			restOpts = append(restOpts, rest.WithBearerToken(token))
+		}
+		if f.restClientID != "" && f.restClientSecret != "" && f.restTokenURL != "" {
+			restOpts = append(restOpts, rest.WithOAuth2ClientCredentials(
+				f.restTokenURL, f.restClientID, f.restClientSecret,
+			))
+		}
+		return rest.New(f.restURL, restOpts...), nil
 	default:
 		return nil, fmt.Errorf("unknown catalog %q", f.catalogKind)
 	}

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "iceberg-sentry.fullname" . }}-policy
+  labels:
+    {{- include "iceberg-sentry.labels" . | nindent 4 }}
+data:
+  sentry.yaml: |
+{{ .Values.policy.inline | indent 4 }}

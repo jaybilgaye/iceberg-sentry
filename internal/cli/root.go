@@ -45,6 +45,9 @@ func newRootCmd(version string) *cobra.Command {
 		newOrphansCmd(),
 		newPIICmd(),
 		newBenchCmd(),
+		newMigrationCmd(),
+		newCostCmd(),
+		newExportCmd(),
 		newVersionCmd(version),
 	)
 	return root

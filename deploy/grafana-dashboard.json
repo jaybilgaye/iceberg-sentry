@@ -1,0 +1,46 @@
+{
+  "title": "Iceberg Sentry — Lakehouse Health",
+  "schemaVersion": 38,
+  "tags": ["iceberg", "lakehouse", "iceberg-sentry"],
+  "timezone": "browser",
+  "refresh": "1m",
+  "time": {"from": "now-24h", "to": "now"},
+  "panels": [
+    {
+      "id": 1, "type": "table",
+      "title": "Health Score by Table",
+      "datasource": {"type": "prometheus"},
+      "targets": [{
+        "refId": "A",
+        "expr": "iceberg_table_health_score",
+        "instant": true,
+        "format": "table"
+      }],
+      "fieldConfig": {"defaults": {"thresholds": {"mode": "absolute", "steps": [
+        {"color": "red", "value": null},
+        {"color": "orange", "value": 60},
+        {"color": "green", "value": 80}
+      ]}}}
+    },
+    {
+      "id": 2, "type": "timeseries",
+      "title": "Critical Findings Over Time",
+      "datasource": {"type": "prometheus"},
+      "targets": [{
+        "refId": "A",
+        "expr": "sum by (table) (iceberg_table_dimension_severity == 3)",
+        "legendFormat": "{{table}}"
+      }]
+    },
+    {
+      "id": 3, "type": "stat",
+      "title": "Reclaimable Storage (bytes)",
+      "datasource": {"type": "prometheus"},
+      "targets": [{
+        "refId": "A",
+        "expr": "sum(iceberg_table_estimated_wastage_bytes)"
+      }],
+      "fieldConfig": {"defaults": {"unit": "bytes"}}
+    }
+  ]
+}

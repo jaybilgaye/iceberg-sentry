@@ -1,0 +1,60 @@
+# Default values for iceberg-sentry.
+
+image:
+  repository: ghcr.io/jaybilgaye/iceberg-sentry
+  tag: latest
+  pullPolicy: IfNotPresent
+
+# Toggle the two deployment modes independently.
+cronjob:
+  enabled: true
+  schedule: "0 2 * * *"
+  args:
+    - audit
+    - --catalog=glue
+    - --namespace=finance
+    - --format=prometheus
+    - --push-gateway=http://prometheus-pushgateway:9091
+  envSecretName: iceberg-sentry-aws
+
+exporter:
+  enabled: false
+  replicas: 1
+  listen: ":9400"
+  interval: "5m"
+  args:
+    - export
+    - --catalog=glue
+    - --namespace=finance
+  envSecretName: iceberg-sentry-aws
+
+policy:
+  # Inline policy contents. The chart materialises a ConfigMap from this.
+  inline: |
+    version: "1.0"
+    default_catalog: glue
+    policies:
+      - name: production
+        target_namespace: "*"
+        min_file_size_mb: 128
+        max_manifest_files: 2000
+        max_snapshot_age: 30d
+        delete_file_ratio_warn: 0.10
+        delete_file_ratio_fail: 0.25
+        min_health_score: 75
+
+serviceAccount:
+  create: true
+  annotations: {}
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+
+serviceMonitor:
+  enabled: false
+  interval: 60s
