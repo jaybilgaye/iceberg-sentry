@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>audit — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav">
+    <a href="./" class="active">docs</a>
+    <a href="../examples.html">examples</a>
+    <a href="https://github.com/jaybilgaye/iceberg-sentry">github</a>
+    <button class="theme-toggle" data-theme-toggle>dark</button>
+  </nav>
+</div></header>
+
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>audit</h1>
+    <p class="muted">Score Iceberg table health across six dimensions. The primary command — and the one you'll wire into CI.</p>
+
+    <h2 id="usage">Usage</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit [flags]</pre>
+
+    <p>You must specify either <code>--table</code> or <code>--namespace</code>.</p>
+
+    <h2 id="examples">Examples</h2>
+
+    <h3>Single table from a local catalog</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog localfs --catalog-root ./warehouse \
+    --table finance.transactions</pre>
+
+    <h3>Whole namespace from AWS Glue, fail CI on warnings</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog glue --namespace finance \
+    --policy sentry.yaml --fail-on warn</pre>
+
+    <h3>SARIF for GitHub Code Scanning</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog rest --rest https://polaris.example.com/api/catalog \
+    --namespace finance --format sarif > iceberg.sarif</pre>
+
+    <h3>Prometheus push to a CronJob's pushgateway</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog glue --namespace finance \
+    --format prometheus \
+    --push-gateway http://prometheus-pushgateway:9091 \
+    --push-job iceberg-sentry</pre>
+
+    <h3>Audit a specific branch</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit --table finance.transactions --branch staging</pre>
+
+    <h2 id="flags">Flags</h2>
+    <table class="flags">
+      <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>--catalog</td><td>string</td><td>localfs</td><td><code>localfs</code> · <code>glue</code> · <code>hive</code> · <code>rest</code> · <code>polaris</code> · <code>unity</code></td></tr>
+        <tr><td>--catalog-root</td><td>string</td><td></td><td>Root dir for the LocalFS catalog. <code>$SENTRY_CATALOG_ROOT</code> overrides.</td></tr>
+        <tr><td>--hive</td><td>host:port</td><td></td><td>Hive Metastore Thrift endpoint.</td></tr>
+        <tr><td>--hive-principal</td><td>string</td><td></td><td>Kerberos client principal (<code>user@REALM</code>).</td></tr>
+        <tr><td>--hive-keytab</td><td>path</td><td></td><td>Keytab file path for <code>--hive-principal</code>.</td></tr>
+        <tr><td>--rest</td><td>url</td><td></td><td>Iceberg REST catalog base URL.</td></tr>
+        <tr><td>--rest-token</td><td>string</td><td></td><td>Bearer token. Defaults to <code>$SENTRY_REST_TOKEN</code>.</td></tr>
+        <tr><td>--rest-oauth-client-id</td><td>string</td><td></td><td>OAuth2 client_id for token exchange.</td></tr>
+        <tr><td>--rest-oauth-client-secret</td><td>string</td><td></td><td>OAuth2 client_secret.</td></tr>
+        <tr><td>--rest-oauth-token-url</td><td>url</td><td></td><td>OAuth2 token endpoint.</td></tr>
+        <tr><td>--glue-catalog</td><td>account-id</td><td></td><td>Cross-account Glue catalog ID.</td></tr>
+        <tr><td>--hdfs</td><td>url</td><td></td><td>WebHDFS root URL.</td></tr>
+        <tr><td>--s3-path-style</td><td>bool</td><td>false</td><td>Force path-style addressing (MinIO/LocalStack).</td></tr>
+        <tr><td>--table</td><td>string</td><td></td><td>Fully qualified table id (<code>ns.tbl</code>).</td></tr>
+        <tr><td>--namespace</td><td>string</td><td></td><td>Audit every Iceberg table in the namespace.</td></tr>
+        <tr><td>--branch</td><td>string</td><td>main</td><td>Iceberg branch to scan.</td></tr>
+        <tr><td>--policy</td><td>path</td><td></td><td>Path to <code>sentry.yaml</code>.</td></tr>
+        <tr><td>--format</td><td>string</td><td>text</td><td><code>text</code> · <code>json</code> · <code>sarif</code> · <code>prometheus</code></td></tr>
+        <tr><td>--fail-on</td><td>string</td><td>critical</td><td>Min severity that exits non-zero: <code>warn</code> · <code>critical</code> · <code>never</code>.</td></tr>
+        <tr><td>--push-gateway</td><td>url</td><td></td><td>Prometheus pushgateway URL for <code>--format prometheus</code>.</td></tr>
+        <tr><td>--push-job</td><td>string</td><td>iceberg-sentry</td><td>Job label for the push.</td></tr>
+        <tr><td>--push-instance</td><td>string</td><td></td><td>Optional instance label.</td></tr>
+        <tr><td>--atlas-output</td><td>path</td><td></td><td>Write Atlas/UC bulk-import payload of health findings. <code>-</code> for stdout.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="text-output">Text output anatomy</h2>
+    <div class="terminal">
+      <div class="term-head"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>~ audit fixtures.skewed_v2</span></div>
+<pre>  Table: fixtures.skewed_v2  │  Score: 68/90  <span class="term-critical">CRITICAL</span>
+  ─────────────────────────────────────────────────────────────────
+  <span class="term-critical">[CRITICAL]</span>   file_size               8/20  100% of files below 32MB
+                  → rewrite_data_files (target=512MB) recommended
+  <span class="term-ok">[OK]</span>         delete_amplification   20/20  no delete files present
+  <span class="term-ok">[OK]</span>         manifest_density       15/15  7 manifest files
+  <span class="term-ok">[OK]</span>         snapshot               15/15  7 snapshots; oldest 0m
+  <span class="term-critical">[CRITICAL]</span>   partition_skew          5/15  CV=30.12 across 7 partitions (1 hot, 0 sparse)
+                  → re-partition hot keys or bucket the partition column
+  <span class="term-ok">[OK]</span>         format_version          5/5   Iceberg v2
+  ─────────────────────────────────────────────────────────────────
+  Catalog: localfs:./warehouse  │  Snapshot: 8263…  │  Format: v2  │  Scan: 9ms</pre>
+    </div>
+
+    <p>Each row carries: severity tag, dimension name, score/max, a one-line summary, and (if applicable) a remediation hint with the exact SQL/Iceberg call to fix it.</p>
+
+    <h2 id="json-output">JSON output</h2>
+<pre>{
+  "table": "fixtures.skewed_v2",
+  "catalog": "localfs:./warehouse",
+  "format_version": 2,
+  "snapshot_id": 8263861247025200944,
+  "write_pattern": "streaming",
+  "score": 68,
+  "max_score": 90,
+  "worst_severity": "CRITICAL",
+  "dimensions": [
+    {
+      "name": "partition_skew",
+      "score": 5, "max_score": 15,
+      "severity": "CRITICAL",
+      "summary": "CV=30.12 across 7 partitions (1 hot, 0 sparse)",
+      "remediation": "re-partition hot keys or bucket the partition column"
+    }
+  ],
+  "scan_duration_ms": 9
+}</pre>
+
+    <h2 id="sarif-output">SARIF output</h2>
+    <p>One <code>result</code> per failing dimension. The <code>logicalLocations</code> entry carries the table id; <code>properties</code> exposes score and max-score so dashboards can chart trends across runs.</p>
+
+    <h2 id="prometheus-output">Prometheus output</h2>
+    <p>Emits six gauge families:</p>
+    <ul>
+      <li><code>iceberg_table_health_score</code></li>
+      <li><code>iceberg_table_health_max_score</code></li>
+      <li><code>iceberg_table_dimension_score{dimension="…"}</code></li>
+      <li><code>iceberg_table_dimension_max_score{dimension="…"}</code></li>
+      <li><code>iceberg_table_dimension_severity</code> (0=OK, 1=INFO, 2=WARNING, 3=CRITICAL)</li>
+      <li><code>iceberg_table_scan_duration_ms</code></li>
+    </ul>
+    <p>All series carry <code>table</code>, <code>catalog</code>, <code>format_version</code> labels; <code>branch</code> and <code>write_pattern</code> when set.</p>
+
+    <h2 id="exit-codes">Exit codes</h2>
+    <p>See <a href="./concepts.html#exit-codes">Concepts → Exit codes</a>. <code>--fail-on warn</code> escalates WARNING into a non-zero exit; <code>--fail-on never</code> always exits 0 (useful for metrics-only CronJobs).</p>
+
+    <h2 id="see-also">See also</h2>
+    <div class="toc-grid">
+      <a href="./policy.html"><span class="label">/policy</span><div class="desc">Per-namespace threshold overrides via sentry.yaml.</div></a>
+      <a href="./bench.html"><span class="label">/bench</span><div class="desc">Capture a baseline and measure the effect of compaction.</div></a>
+      <a href="./ci-integration.html"><span class="label">/ci-integration</span><div class="desc">Wire audit into a CI pipeline with SARIF.</div></a>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

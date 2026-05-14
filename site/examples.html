@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Examples — Iceberg Sentry</title>
+<link rel="stylesheet" href="assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="./"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav">
+    <a href="./docs/">docs</a>
+    <a href="./examples.html" class="active">examples</a>
+    <a href="https://github.com/jaybilgaye/iceberg-sentry">github</a>
+    <button class="theme-toggle" data-theme-toggle>dark</button>
+  </nav>
+</div></header>
+
+<div class="container" style="padding: 2.5rem 1.25rem 4rem;">
+  <h1>Examples</h1>
+  <p class="muted" style="max-width: 720px;">Real workflows you can copy. Every example has been tested against the pyiceberg-generated fixtures shipped in <code>scripts/gen_fixtures.py</code>.</p>
+
+  <h2 id="quickstart">Audit a local Iceberg warehouse</h2>
+  <p class="muted">Generate fixtures, audit a single skewed table, exit non-zero on CRITICAL.</p>
+<pre><span style="color:var(--accent)">$</span> pip install "pyiceberg[pyarrow,sql-sqlite]>=0.7.0"
+<span style="color:var(--accent)">$</span> python scripts/gen_fixtures.py --root ./warehouse --clean
+
+<span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog localfs --catalog-root ./warehouse \
+    --table fixtures.skewed_v2</pre>
+
+  <div class="terminal">
+    <div class="term-head"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>~ output</span></div>
+<pre>  Table: fixtures.skewed_v2  │  Score: 68/90  <span class="term-critical">CRITICAL</span>
+  ─────────────────────────────────────────────────────────────────
+  <span class="term-critical">[CRITICAL]</span>   file_size               8/20  100% of files below 32MB
+                  → rewrite_data_files (target=512MB) recommended
+  <span class="term-ok">[OK]</span>         delete_amplification   20/20  no delete files present
+  <span class="term-ok">[OK]</span>         manifest_density       15/15  7 manifest files
+  <span class="term-ok">[OK]</span>         snapshot               15/15  7 snapshots; oldest 0m
+  <span class="term-critical">[CRITICAL]</span>   partition_skew          5/15  CV=30.12 across 7 partitions (1 hot, 0 sparse)
+  <span class="term-ok">[OK]</span>         format_version          5/5   Iceberg v2</pre>
+  </div>
+
+  <hr/>
+
+  <h2 id="ci-sarif">Gate a PR with SARIF</h2>
+<pre>name: Iceberg health
+on: pull_request
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install
+        run: curl -sSL https://get.icebergsentry.io/install.sh | bash
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.ICEBERG_AUDIT_ROLE }}
+          aws-region: us-east-1
+      - run: |
+          iceberg-sentry audit \
+            --catalog glue --namespace finance \
+            --policy sentry.yaml \
+            --format sarif > iceberg.sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with: { sarif_file: iceberg.sarif, category: iceberg-health }</pre>
+
+  <hr/>
+
+  <h2 id="orphans">Find orphan files, save manifest, delete with your own tool</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry orphans \
+    --catalog glue --table finance.transactions \
+    --grace-period 6h --format json > orphans.json
+
+<span style="color:var(--accent)">$</span> jq -r '.candidates[].uri' orphans.json \
+  | aws s3 rm --recursive --quiet</pre>
+
+  <div class="callout warn">
+    <strong>// safety</strong>
+    Sentry only emits a recommendation. The actual deletion is a separate
+    step you control — typically with <code>aws s3 rm</code> or your data
+    governance tool. Files written in the 6-hour grace window are never
+    flagged.
+  </div>
+
+  <hr/>
+
+  <h2 id="bench">Measure a compaction</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry bench start \
+    --catalog glue --table finance.transactions --tag pre-compact
+
+<span style="color:var(--accent)">$</span> spark-sql -e "CALL catalog.system.rewrite_data_files('finance.transactions')"
+
+<span style="color:var(--accent)">$</span> iceberg-sentry bench compare \
+    --catalog glue --table finance.transactions --tag pre-compact</pre>
+
+  <div class="terminal">
+    <div class="term-head"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>~ bench compare</span></div>
+<pre>  Benchmark: finance.transactions  │  pre-compact → current
+  ────────────────────────────────────────────────────────────────────
+  Health Score:         <span class="term-warn">61</span>  →  <span class="term-ok">89</span>     <span class="term-ok">(+28)</span>
+  Data Files:       18,203  →  2,847  <span class="term-ok">(-84%)</span>
+  Manifest Files:    3,401  →  124    <span class="term-ok">(-96%)</span>
+  Position Deletes:  1,842  →  <span class="term-ok">0</span>      <span class="term-ok">(-100%)</span>
+  Avg File Size:     38 MB  →  241 MB</pre>
+  </div>
+
+  <hr/>
+
+  <h2 id="pii">PII scan + Atlas import</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry pii \
+    --catalog glue --table finance.customers \
+    --row-group-fraction 0.05 \
+    --atlas-output atlas-import-$(date +%F).json</pre>
+
+<pre>{
+  "review_required": true,
+  "findings": [
+    { "column": "customer_email",   "pii_type": "EMAIL",       "confidence": 0.97, "recommended_tag": "PII_EMAIL"        },
+    { "column": "billing_card",     "pii_type": "CREDIT_CARD", "confidence": 0.99, "recommended_tag": "PII_CREDIT_CARD"  }
+  ]
+}</pre>
+
+  <hr/>
+
+  <h2 id="prometheus">Push metrics to Prometheus from CronJob</h2>
+<pre>apiVersion: batch/v1
+kind: CronJob
+metadata: { name: iceberg-sentry-daily }
+spec:
+  schedule: "0 2 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sentry
+              image: ghcr.io/jaybilgaye/iceberg-sentry:latest
+              args:
+                - audit
+                - --catalog=glue
+                - --namespace=finance
+                - --format=prometheus
+                - --push-gateway=http://prometheus-pushgateway:9091
+                - --push-job=iceberg-sentry</pre>
+
+  <hr/>
+
+  <h2 id="exporter">Long-lived /metrics exporter + Grafana</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry export \
+    --catalog rest --rest http://catalog:8181 \
+    --namespace finance --listen :9400 --interval 5m</pre>
+
+<pre><span style="color:var(--accent)">$</span> curl -s http://localhost:9400/metrics | head -10
+# scanned_at 2026-05-14T14:12:28Z
+# HELP iceberg_table_health_score Composite Iceberg Sentry health score (0..max).
+# TYPE iceberg_table_health_score gauge
+iceberg_table_health_score{catalog="rest",format_version="2",table="finance.transactions",write_pattern="streaming"} 78
+...</pre>
+
+  <p class="muted">Grafana dashboard JSON: <code>deploy/grafana-dashboard.json</code>.</p>
+
+  <hr/>
+
+  <h2 id="migration">Migration Readiness Audit</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry migration \
+    --catalog hive --hive hms.onprem:9083 \
+    --hive-principal "iceberg-sentry@PROD.EXAMPLE.COM" \
+    --hive-keytab /etc/iceberg-sentry/sentry.keytab \
+    --namespace finance --format json | jq '.[] | select(.risk == "HIGH")'</pre>
+
+<pre>{
+  "table": "finance.legacy_transactions",
+  "risk": "HIGH",
+  "findings": [
+    {
+      "code": "HDFS_PATH",
+      "severity": "HIGH",
+      "message": "absolute hdfs:// path in metadata: hdfs://nn/user/hive/warehouse/...",
+      "remediation": "re-register the table with a location-relative metadata path before migration"
+    }
+  ],
+  "total_data_bytes": 1843298423
+}</pre>
+
+  <hr/>
+
+  <h2 id="rest-oauth">Polaris / Unity Catalog via OAuth2</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog polaris \
+    --rest https://polaris.example.com/api/catalog \
+    --rest-oauth-client-id "$CLIENT_ID" \
+    --rest-oauth-client-secret "$CLIENT_SECRET" \
+    --rest-oauth-token-url https://polaris.example.com/api/oauth/token \
+    --namespace finance</pre>
+
+  <hr/>
+
+  <h2 id="cost">Snapshot cost timeline</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry cost \
+    --catalog rest --rest http://catalog:8181 \
+    --table finance.transactions \
+    --cold-tier-days 90 --format json | jq '.timeline[-5:]'</pre>
+
+</div>
+
+<footer class="footer">
+  <div class="container">
+    <div>
+      <h4>iceberg-sentry</h4>
+      <p>Apache 2.0 · Built for Iceberg v1, v2, v3.</p>
+    </div>
+    <div>
+      <h4>Docs</h4>
+      <ul>
+        <li><a href="./docs/quickstart.html">Quickstart</a></li>
+        <li><a href="./docs/audit.html">audit</a></li>
+        <li><a href="./docs/architecture.html">Architecture</a></li>
+      </ul>
+    </div>
+  </div>
+</footer>
+
+<script src="assets/js/site.js"></script>
+</body>
+</html>

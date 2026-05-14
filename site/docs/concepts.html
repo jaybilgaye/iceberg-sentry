@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Concepts — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav">
+    <a href="./" class="active">docs</a>
+    <a href="../examples.html">examples</a>
+    <a href="https://github.com/jaybilgaye/iceberg-sentry">github</a>
+    <button class="theme-toggle" data-theme-toggle>dark</button>
+  </nav>
+</div></header>
+
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>Concepts</h1>
+    <p class="muted">Everything you need to know to read the output of every Sentry command.</p>
+
+    <h2 id="iceberg-anatomy">Iceberg table anatomy</h2>
+    <p>An Iceberg table is three layers:</p>
+    <ol>
+      <li><strong>Catalog</strong> — a key-value store mapping <code>namespace.table</code> to a metadata pointer. Glue, Hive Metastore, Iceberg REST, Polaris, Unity, or a directory on disk all qualify.</li>
+      <li><strong>Metadata</strong> — a JSON file (<code>vN.metadata.json</code>) holding the table's schema history, partition specs, snapshot log, and refs.</li>
+      <li><strong>Manifests</strong> — Avro files. The <em>manifest list</em> for a snapshot points at one or more <em>manifest files</em>, each of which describes a set of data files (and, in v2, delete files).</li>
+    </ol>
+    <p>Sentry walks all three. The catalog gives us the metadata location; the metadata JSON gives us snapshots and the manifest-list URI; each manifest file enumerates data + delete files with their sizes, partition values, and content type. That's enough to score health without touching a Parquet byte.</p>
+
+    <h2 id="health-score">The health score</h2>
+    <p>Every <code>audit</code> emits a composite 0–100 score (currently summed to 90 because <code>schema_evolution</code> is Phase 4). Dimensions and their max weights:</p>
+    <table class="flags">
+      <thead><tr><th>Dimension</th><th>Max</th><th>What it measures</th></tr></thead>
+      <tbody>
+        <tr><td>file_size</td><td>20</td><td>Small-file ratio (under 64 / 128 MB) vs. data-file count.</td></tr>
+        <tr><td>delete_amplification</td><td>20</td><td>Position + equality delete files vs. data files. v2 only.</td></tr>
+        <tr><td>manifest_density</td><td>15</td><td>Manifest count vs. policy threshold (default 2k warn, 5k crit).</td></tr>
+        <tr><td>snapshot</td><td>15</td><td>Snapshot count + age of oldest snapshot.</td></tr>
+        <tr><td>partition_skew</td><td>15</td><td>Coefficient of variation across per-partition bytes; hot/sparse counts.</td></tr>
+        <tr><td>format_version</td><td>5</td><td>v1 surfaces as INFO; v2 + v3 are full marks.</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted">Thresholds are tunable per-namespace via <a href="./policy.html">sentry.yaml</a>.</p>
+
+    <h2 id="severity">Severity model</h2>
+    <table class="flags">
+      <tbody>
+        <tr><td><strong>OK</strong></td><td>Dimension within policy. No action required.</td></tr>
+        <tr><td><strong>INFO</strong></td><td>Informational signal (e.g. v1 format).</td></tr>
+        <tr><td><strong>WARNING</strong></td><td>Approaching threshold. Surface in CI with <code>--fail-on warn</code>.</td></tr>
+        <tr><td><strong>CRITICAL</strong></td><td>Threshold breached. Default <code>--fail-on critical</code> fails the build.</td></tr>
+      </tbody>
+    </table>
+    <p>The <em>worst severity</em> across dimensions determines the table's overall severity and the process exit code.</p>
+
+    <h2 id="exit-codes">Exit codes</h2>
+    <table class="flags exit-code-table">
+      <tbody>
+        <tr><td>0</td><td>OK</td></tr>
+        <tr><td>1</td><td>WARNING surfaced (<code>--fail-on warn</code>)</td></tr>
+        <tr><td>2</td><td>CRITICAL</td></tr>
+        <tr><td>3</td><td>Untagged PII found by <code>pii</code></td></tr>
+        <tr><td>4</td><td>Tool / config error</td></tr>
+        <tr><td>5</td><td>Catalog or storage connection failure</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="write-pattern">Write-pattern classification</h2>
+    <p>A streaming Flink job that emits files every minute should not be flagged as "small file syndrome" — that's its normal state. Sentry classifies tables based on the trailing 50 snapshots:</p>
+    <ul>
+      <li><strong>streaming</strong> — median inter-commit interval ≤ 5 minutes</li>
+      <li><strong>batch</strong> — median inter-commit interval ≥ 1 hour</li>
+      <li><strong>mixed</strong> — CV of intervals &gt; 1.0 (clear bimodal distribution)</li>
+      <li><strong>unknown</strong> — fewer than two snapshots</li>
+    </ul>
+    <p>The pattern is reported in every output and affects scoring: streaming tables get the file-size warn threshold relaxed by 4×.</p>
+
+    <h2 id="snapshot-lock">Snapshot lock — point-in-time consistency</h2>
+    <p>Concurrent writers can append snapshots while Sentry is scanning. Every command locks to a specific snapshot ID at start and operates against that snapshot for the entire run. In-flight commits after the lock are invisible to the audit, so partial-write states never affect results.</p>
+
+    <h2 id="dimensions-detail">How each dimension is computed</h2>
+
+    <h3 id="dim-file-size">file_size</h3>
+    <ul>
+      <li>Fraction of data files under <code>min_file_size_mb</code> (default 128 MB).</li>
+      <li>≥ 50% small → CRITICAL (score 8). 25–50% → WARNING (score 12). Else OK.</li>
+      <li>Streaming pattern divides the threshold by 4 (floor 16 MB).</li>
+    </ul>
+
+    <h3 id="dim-delete">delete_amplification</h3>
+    <ul>
+      <li>v2 tables only. Counts position + equality delete files separately.</li>
+      <li>ratio = (position + equality) / data file count.</li>
+      <li>≥ <code>delete_file_ratio_fail</code> (default 0.25) → CRITICAL.</li>
+      <li>≥ <code>delete_file_ratio_warn</code> (default 0.10) → WARNING.</li>
+    </ul>
+
+    <h3 id="dim-manifest">manifest_density</h3>
+    <ul>
+      <li>Total manifest file count.</li>
+      <li>≥ <code>crit</code> (default 5,000) → CRITICAL.</li>
+      <li>≥ <code>warn</code> (default 2,000) → WARNING.</li>
+    </ul>
+
+    <h3 id="dim-snapshot">snapshot</h3>
+    <ul>
+      <li>Snapshot count + age of the oldest snapshot.</li>
+      <li>oldest ≥ 90d <em>or</em> count ≥ 500 → CRITICAL.</li>
+      <li>oldest ≥ 30d <em>or</em> count ≥ 100 → WARNING.</li>
+    </ul>
+
+    <h3 id="dim-skew">partition_skew</h3>
+    <ul>
+      <li>Coefficient of variation across per-partition byte volume.</li>
+      <li>≥ 1.0 → CRITICAL. ≥ 0.5 → WARNING.</li>
+      <li>Also reports "hot" (&gt; 2× median) and "sparse" (&lt; 10% median) counts.</li>
+    </ul>
+
+    <h3 id="dim-format">format_version</h3>
+    <ul>
+      <li>v1 → INFO (recommend upgrade to v2 for row-level deletes).</li>
+      <li>v2, v3 → OK.</li>
+    </ul>
+
+    <h2 id="catalog-vs-storage">Catalog vs. storage</h2>
+    <p>Catalogs and storage backends are independent:</p>
+    <ul>
+      <li><strong>Catalog</strong> answers "where is this table's metadata?" via a JDBC/Thrift/HTTP call.</li>
+      <li><strong>Storage</strong> answers "give me the bytes of this URI." S3, ADLS Gen2 (via S3-compatible API), HDFS (WebHDFS), local FS.</li>
+    </ul>
+    <p>The same Glue catalog can point at S3 paths in three different buckets and three different regions; the storage layer dispatches by URI scheme.</p>
+
+    <h2 id="zero-persistence">Zero-persistence PII scanning</h2>
+    <p>The PII scanner is built so column <em>values</em> never escape the byte stream. The Parquet row-group reader pipes values directly into the regex/entropy classifier and discards them immediately. Only column names and detected PII types are written to the report. Confirm with <code>strace</code> if you need to.</p>
+
+    <div class="callout">
+      <strong>// next</strong>
+      Each command has its own doc page with full flag reference. Start with <a href="./audit.html"><code>audit</code></a>.
+    </div>
+
+  </main>
+</div>
+
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

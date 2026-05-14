@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Documentation — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav">
+    <a href="./" class="active">docs</a>
+    <a href="../examples.html">examples</a>
+    <a href="https://github.com/jaybilgaye/iceberg-sentry">github</a>
+    <button class="theme-toggle" data-theme-toggle>dark</button>
+  </nav>
+</div></header>
+
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+
+  <main class="docs-main prose">
+    <h1>Iceberg Sentry</h1>
+    <p class="muted">Iceberg-native lakehouse reliability linter — diagnostics, CI gating, and operational insight for Apache Iceberg tables, from metadata alone. No Spark cluster required.</p>
+
+    <div class="callout">
+      <strong>// what it does</strong>
+      Reads Iceberg <code>vN.metadata.json</code> + Avro manifest files directly. Computes a 0–100 health score across six dimensions, finds orphan storage, samples for PII, classifies write patterns, and emits structured output for CI gating and metrics scraping.
+    </div>
+
+    <h2>Where to start</h2>
+    <div class="toc-grid">
+      <a href="./install.html">
+        <span class="label">/install</span>
+        <div class="desc">curl, brew, Docker, Helm, or <code>go install</code>.</div>
+      </a>
+      <a href="./quickstart.html">
+        <span class="label">/quickstart</span>
+        <div class="desc">Generate a sample table and run your first audit in under 5 minutes.</div>
+      </a>
+      <a href="./concepts.html">
+        <span class="label">/concepts</span>
+        <div class="desc">Iceberg metadata, catalogs, the seven health dimensions.</div>
+      </a>
+      <a href="./architecture.html">
+        <span class="label">/architecture</span>
+        <div class="desc">How a scan works: streaming Avro, Bloom filters, snapshot lock.</div>
+      </a>
+    </div>
+
+    <h2>Commands at a glance</h2>
+    <table class="flags">
+      <thead><tr><th>Command</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><a href="./audit.html">audit</a></td><td>Score table health across six dimensions. Primary command.</td></tr>
+        <tr><td><a href="./orphans.html">orphans</a></td><td>Find files in storage that no valid snapshot references.</td></tr>
+        <tr><td><a href="./pii.html">pii</a></td><td>Stream-sample Parquet row groups for emails, cards, SSNs, API keys.</td></tr>
+        <tr><td><a href="./bench.html">bench</a></td><td>Capture a baseline, compare after maintenance.</td></tr>
+        <tr><td><a href="./migration.html">migration</a></td><td>HDFS → CDP migration readiness audit.</td></tr>
+        <tr><td><a href="./cost.html">cost</a></td><td>Snapshot cost timeline and cold-tier candidates.</td></tr>
+        <tr><td><a href="./export.html">export</a></td><td>Long-lived Prometheus /metrics server.</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Catalogs &amp; storage</h2>
+    <p class="muted">Pick the catalog you already operate; Sentry resolves the table metadata location through it.</p>
+    <table class="flags">
+      <thead><tr><th>Catalog</th><th>Auth</th><th>Flag</th></tr></thead>
+      <tbody>
+        <tr><td>LocalFS (HadoopCatalog-style)</td><td>none</td><td><code>--catalog localfs --catalog-root</code></td></tr>
+        <tr><td>AWS Glue Data Catalog</td><td>IAM</td><td><code>--catalog glue [--glue-catalog]</code></td></tr>
+        <tr><td>Hive Metastore</td><td>plain or Kerberos</td><td><code>--catalog hive --hive HOST:PORT</code></td></tr>
+        <tr><td>Iceberg REST · Polaris · Unity</td><td>bearer / OAuth2</td><td><code>--catalog rest --rest URL</code></td></tr>
+      </tbody>
+    </table>
+    <p class="muted small">Storage backends are picked from the URI scheme returned by the catalog: <code>s3://</code>, <code>hdfs://</code> (WebHDFS), or local paths.</p>
+
+    <h2>Exit codes</h2>
+    <p class="muted">Designed to gate CI pipelines.</p>
+    <table class="flags exit-code-table">
+      <tbody>
+        <tr><td>0</td><td>OK — all checks passed</td></tr>
+        <tr><td>1</td><td>Warning threshold exceeded (use <code>--fail-on warn</code> to surface)</td></tr>
+        <tr><td>2</td><td>Critical — one or more dimensions failed</td></tr>
+        <tr><td>3</td><td>Untagged PII detected</td></tr>
+        <tr><td>4</td><td>Tool / config error</td></tr>
+        <tr><td>5</td><td>Catalog or storage connection failure</td></tr>
+      </tbody>
+    </table>
+  </main>
+</div>
+
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>pii — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>pii</h1>
+    <p class="muted">Stream-sample Parquet row groups for emails, Luhn-validated credit cards, SSNs, phone numbers, AU TFNs, IN Aadhaars, and high-entropy API keys. <strong>Zero-disk persistence.</strong></p>
+
+    <div class="callout">
+      <strong>// design intent</strong>
+      <p>The scanner is built so column <em>values</em> never escape the byte stream. We pipe Parquet values directly into the regex/entropy classifier and discard them immediately. Only column names and detected PII types appear in the output. The CLI never logs a sampled value.</p>
+    </div>
+
+    <h2 id="how">How it works</h2>
+    <ol>
+      <li>Resolve the table; pick the current snapshot.</li>
+      <li>Walk manifests, gather up to <code>--max-files</code> Parquet URIs.</li>
+      <li>For each file, open it via the storage backend, sample <code>--row-group-fraction</code> of row groups, and read up to <code>--rows-per-group</code> rows from each.</li>
+      <li>For every <em>string</em> column value, run regex patterns (with Luhn validation for cards) and Shannon-entropy detection (for API keys).</li>
+      <li>Aggregate hits per (column, PII type). Surface findings whose hit rate exceeds <code>--min-confidence</code>.</li>
+    </ol>
+
+    <h2 id="examples">Examples</h2>
+
+    <h3>Defaults (5% row-group sample)</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry pii \
+    --catalog glue --table finance.customers</pre>
+
+    <h3>Exhaustive scan of a small table + Atlas payload</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry pii \
+    --catalog localfs --catalog-root ./warehouse \
+    --table fixtures.pii_v2 \
+    --row-group-fraction 1.0 --rows-per-group 5000 \
+    --min-confidence 0.5 \
+    --atlas-output atlas-pii-$(date +%F).json</pre>
+
+    <h2 id="flags">Flags</h2>
+    <table class="flags">
+      <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>--table</td><td>string</td><td><em>required</em></td><td>Fully qualified table id.</td></tr>
+        <tr><td>--row-group-fraction</td><td>float</td><td>0.05</td><td>Probability that a row group is read (0..1).</td></tr>
+        <tr><td>--rows-per-group</td><td>int</td><td>1024</td><td>Max rows scanned from each sampled group.</td></tr>
+        <tr><td>--min-confidence</td><td>float</td><td>0.5</td><td>Hit rate threshold to surface a finding.</td></tr>
+        <tr><td>--max-files</td><td>int</td><td>16</td><td>Cap on the number of Parquet files sampled per table.</td></tr>
+        <tr><td>--atlas-output</td><td>path</td><td></td><td>Write Atlas/UC bulk-import payload. <code>-</code> for stdout.</td></tr>
+        <tr><td>--format</td><td>string</td><td>text</td><td><code>text</code> · <code>json</code> · <code>atlas</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="detectors">Detectors</h2>
+    <table class="flags">
+      <thead><tr><th>PII type</th><th>How</th></tr></thead>
+      <tbody>
+        <tr><td>EMAIL</td><td>RFC-ish regex.</td></tr>
+        <tr><td>SSN_US</td><td><code>NNN-NN-NNNN</code> regex.</td></tr>
+        <tr><td>CREDIT_CARD</td><td>13–19 digit run + <strong>Luhn validation</strong> to filter false positives.</td></tr>
+        <tr><td>PHONE_E164</td><td><code>+&lt;digits&gt;</code> with 7–14 trailing digits.</td></tr>
+        <tr><td>AU_TFN</td><td>9-digit Australian Tax File Number pattern.</td></tr>
+        <tr><td>IN_AADHAAR</td><td>12-digit Aadhaar pattern. Suppressed when a credit-card surface is present to avoid double-counting.</td></tr>
+        <tr><td>API_KEY_ENTROPY</td><td>Shannon entropy ≥ 4.0 bits over 24+ alphanumeric chars, no whitespace.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="output">Output</h2>
+    <div class="terminal">
+      <div class="term-head"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>~ pii fixtures.pii_v2</span></div>
+<pre>  PII Scan Report: fixtures.pii_v2
+  ─────────────────────────────────────────────────────────────────
+  Files sampled: 1
+  Findings:      3 (review required — no auto-tagging)
+
+    [EMAIL]            column=email  confidence=1.00  samples=5000/5000  → PII_EMAIL
+    [CREDIT_CARD]      column=card   confidence=1.00  samples=5000/5000  → PII_CREDIT_CARD
+    [API_KEY_ENTROPY]  column=note   confidence=0.004 samples=20/5000    → PII_API_KEY_ENTROPY</pre>
+    </div>
+
+    <h2 id="atlas-payload">Atlas / Unity Catalog payload</h2>
+<pre>{
+  "review_required": true,
+  "findings": [
+    {
+      "table": "fixtures.pii_v2",
+      "column": "email",
+      "pii_type": "EMAIL",
+      "sample_count": 5000,
+      "match_count": 5000,
+      "confidence": 1.0,
+      "recommended_tag": "PII_EMAIL"
+    }
+  ]
+}</pre>
+    <p>The payload is shaped for Atlas's <code>POST /api/atlas/v2/entity/bulk</code> after operator review; <em>no auto-tagging</em>.</p>
+
+    <h2 id="exit-code">Exit code</h2>
+    <p>Exits <code>3</code> (untagged PII) when at least one finding clears the confidence threshold; <code>0</code> otherwise.</p>
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>Architecture</h1>
+    <p class="muted">How a scan really works — streaming Avro, point-in-time consistency, Bloom-filtered orphan detection, and the package layout under <code>internal/</code>.</p>
+
+    <h2 id="block-diagram">High-level block diagram</h2>
+<pre>┌─────────────────────────────────────────────────────────────────────┐
+│                        iceberg-sentry CLI                           │
+│                                                                     │
+│  ┌─────────────┐    ┌──────────────────┐    ┌───────────────────┐  │
+│  │   Policy    │    │  Catalog         │    │   Output          │  │
+│  │   Engine    │    │  Resolver        │    │   Formatter       │  │
+│  │ (sentry.yaml│    │  (LocalFS/Glue/  │    │  (text/JSON/      │  │
+│  │  validator) │    │  Hive/REST/      │    │   SARIF/prom)     │  │
+│  │             │    │  Polaris/Unity)  │    │                   │  │
+│  └──────┬──────┘    └────────┬─────────┘    └────────▲──────────┘  │
+│         │                    │                       │             │
+│         ▼                    ▼                       │             │
+│  ┌──────────────────────────────────────────────────┐│             │
+│  │              Metadata Parser                     ││             │
+│  │  • JSON metadata walker (vN.metadata.json)       ││             │
+│  │  • Avro manifest reader (streaming, zero-copy)   ││             │
+│  │  • Bloom Filter: active file set                 ││             │
+│  │  • Write-pattern classifier                      ││             │
+│  └────────────────────────┬─────────────────────────┘│             │
+│                           │                          │             │
+│         ┌─────────────────┼─────────────────┐        │             │
+│         ▼                 ▼                 ▼        │             │
+│  ┌─────────────┐  ┌──────────────┐  ┌──────────────┐│             │
+│  │  Diagnostic │  │  Storage SAL │  │  Cost +      ││             │
+│  │  Engine     │  │  S3/HDFS/    │  │  Migration   ││             │
+│  │  (health,   │  │  Local       │  │  modules     ││             │
+│  │  skew, cost)│  │              │  │              ││             │
+│  └─────────────┘  └──────────────┘  └──────────────┘│             │
+│                                                      │             │
+│                   Results aggregated ────────────────┘             │
+└─────────────────────────────────────────────────────────────────────┘</pre>
+
+    <h2 id="scan-workflow">Deep scan workflow</h2>
+    <ol>
+      <li><strong>Policy Load</strong>. Parse and validate <code>sentry.yaml</code>. Resolve target namespaces.</li>
+      <li><strong>Catalog Resolution</strong>. Connect (HMS Thrift, Glue API, REST, file walk) and fetch each table's metadata location.</li>
+      <li><strong>Metadata Snapshot Lock</strong>. Download <code>vN.metadata.json</code>. Lock subsequent operations to the locked snapshot ID — in-flight commits are invisible.</li>
+      <li><strong>Write-pattern classification</strong>. Analyse commit-interval CV across the trailing 50 snapshots.</li>
+      <li><strong>Manifest walk</strong>:
+        <ul>
+          <li>Worker A parses the manifest list → dispatches manifest file URIs.</li>
+          <li>Workers B–Z parse manifests concurrently (Avro, streaming) → collect (size, partition, content) per file.</li>
+        </ul>
+      </li>
+      <li><strong>Storage crawl</strong> (orphan mode only). Streaming list with bloom-filter pre-check.</li>
+      <li><strong>Diagnostic analysis</strong>. Feed stats into the health engine; compute per-dimension scores.</li>
+      <li><strong>PII sampling</strong> (when invoked). Worker pool reads Parquet footers, samples row groups, runs in-memory regex + entropy. <em>Zero disk writes.</em></li>
+      <li><strong>Output generation</strong>. Format per <code>--format</code>; apply policy thresholds for the exit code.</li>
+    </ol>
+
+    <h2 id="perf-targets">Performance targets</h2>
+    <table class="flags">
+      <thead><tr><th>Metric</th><th>Target</th></tr></thead>
+      <tbody>
+        <tr><td>Metadata scan (1k manifests)</td><td>&lt; 10s</td></tr>
+        <tr><td>Metadata scan (100k manifests)</td><td>&lt; 90s</td></tr>
+        <tr><td>Memory (standard table)</td><td>&lt; 256 MB</td></tr>
+        <tr><td>Memory (10M+ file tables)</td><td>&lt; 512 MB (disk-backed Bloom — Phase 4)</td></tr>
+        <tr><td>Binary size</td><td>&lt; 20 MB single static binary</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="packages">Package layout</h2>
+<pre>cmd/iceberg-sentry/    CLI entry point
+internal/
+  cli/                 cobra commands
+  iceberg/             metadata JSON + Avro manifest parsers
+  storage/             local, S3, WebHDFS storage backends
+  catalog/             LocalFS, Glue, Hive (Thrift+Kerberos), REST (OAuth2)
+  scan/                catalog → metadata → manifests → stats orchestration
+  health/              composite score + per-dimension diagnostics
+  bloom/               double-hashed Bloom filter for orphan tracking
+  writepattern/        streaming/batch classifier
+  orphans/             differential storage-vs-metadata scan
+  pii/                 Parquet row-group sampler + regex/entropy detector
+  migration/           HDFS → CDP Migration Readiness Audit
+  cost/                pluggable cost provider + snapshot cost timeline
+  metrics/             Prometheus exposition + push gateway client
+  output/              text, json, SARIF, prometheus renderers
+  policy/              sentry.yaml parser and threshold application
+  exitcode/            shared exit-code constants</pre>
+
+    <h2 id="senior-design-decisions">Selected design decisions</h2>
+
+    <h3>Scale without OOM (10M+ file tables)</h3>
+    <p>The orphan-tracker uses a double-hashed Bloom filter (Kirsch–Mitzenmacher) sized for the expected file count at a 0.1% FPR. For genuinely huge tables, the interface accepts a disk-backed implementation (bbolt/pebble) — that's a Phase 4 add. Streaming Avro parsing means we never hold a full manifest in memory.</p>
+
+    <h3>Point-in-time consistency</h3>
+    <p>Every command captures the snapshot ID at the start; all subsequent storage and metadata reads pin to that snapshot. This is exactly the guarantee Iceberg's snapshot isolation already provides — we just respect it across the entire scan.</p>
+
+    <h3>PII without persistence</h3>
+    <p>Go's <code>io.Reader</code> plumbing and the Parquet library's <code>page.Values()</code> iterator let us walk values without materialising columns. Each value is regex-matched and immediately discarded. Column names and detected PII types are the <em>only</em> data that reaches output. <code>strace</code>-verifiable.</p>
+
+    <h3>Accurate delete amplification</h3>
+    <p>For each data file we count associated position-delete and equality-delete files from the manifest entries. The amplification estimate follows the Iceberg spec's merge-on-read cost model. Conservative — actual amplification depends on engine implementation.</p>
+
+    <h3>Write-pattern accuracy</h3>
+    <p>The classifier analyses the last 50 snapshots using commit-interval variance and files-per-commit distribution. ~90% accuracy across the test corpus; the <code>write_pattern</code> override in <code>sentry.yaml</code> handles the edge cases.</p>
+
+    <h3>Multi-cloud cost modelling</h3>
+    <p>Cost rates live behind a <code>cost.Provider</code> interface. Default provider uses S3 Standard list-price rates. Custom providers loadable via YAML config in a future release.</p>
+
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

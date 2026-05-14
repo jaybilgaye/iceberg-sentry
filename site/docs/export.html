@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>export — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>export</h1>
+    <p class="muted">Long-lived Prometheus exporter. Serves <code>/metrics</code> and <code>/healthz</code>, re-runs the configured audit in the background on an interval.</p>
+
+    <h2 id="vs-push">When to use this vs. push gateway</h2>
+    <ul>
+      <li><strong>Push gateway</strong> — <code>iceberg-sentry audit --format prometheus --push-gateway URL</code> from a Kubernetes CronJob. Fire-and-forget.</li>
+      <li><strong>Long-lived exporter</strong> — <code>iceberg-sentry export</code> in a Deployment. Scraped by Prometheus / kube-prometheus-stack ServiceMonitor.</li>
+    </ul>
+
+    <h2 id="example">Example</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry export \
+    --catalog glue --namespace finance \
+    --listen :9400 --interval 5m
+iceberg-sentry export: listening on :9400 (scan interval=5m0s)</pre>
+
+    <h2 id="endpoints">Endpoints</h2>
+    <table class="flags">
+      <tbody>
+        <tr><td><code>GET /metrics</code></td><td>Prometheus exposition format with a leading <code># scanned_at &lt;rfc3339&gt;</code> comment.</td></tr>
+        <tr><td><code>GET /healthz</code></td><td>200 if the last scan succeeded, 503 otherwise.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="flags">Flags</h2>
+    <table class="flags">
+      <thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>--listen</td><td>:9400</td><td>Listen address.</td></tr>
+        <tr><td>--interval</td><td>5m</td><td>Background re-scan cadence.</td></tr>
+        <tr><td>--namespace / --table</td><td></td><td>Targets to scan (mutually exclusive).</td></tr>
+        <tr><td>--branch</td><td>main</td><td>Iceberg branch.</td></tr>
+      </tbody>
+    </table>
+    <p>All catalog and storage flags from <a href="./audit.html#flags">audit</a> apply.</p>
+
+    <h2 id="metric-shape">Metric shape</h2>
+<pre># HELP iceberg_table_health_score Composite Iceberg Sentry health score (0..max).
+# TYPE iceberg_table_health_score gauge
+iceberg_table_health_score{catalog="rest:http://catalog",format_version="2",table="finance.transactions",write_pattern="streaming"} 78
+
+# HELP iceberg_table_dimension_score Per-dimension health score.
+# TYPE iceberg_table_dimension_score gauge
+iceberg_table_dimension_score{...,dimension="file_size"} 8
+iceberg_table_dimension_score{...,dimension="delete_amplification"} 20
+...
+
+# HELP iceberg_table_dimension_severity 0=OK,1=INFO,2=WARNING,3=CRITICAL
+# TYPE iceberg_table_dimension_severity gauge
+iceberg_table_dimension_severity{...,dimension="file_size"} 3</pre>
+
+    <h2 id="grafana">Grafana dashboard</h2>
+    <p>Ready-to-import JSON ships at <a href="https://github.com/jaybilgaye/iceberg-sentry/blob/main/deploy/grafana-dashboard.json"><code>deploy/grafana-dashboard.json</code></a>. Panels:</p>
+    <ul>
+      <li><strong>Health Score by Table</strong> (table view, thresholded red/orange/green)</li>
+      <li><strong>Critical Findings Over Time</strong> (timeseries, <code>severity == 3</code>)</li>
+      <li><strong>Reclaimable Storage</strong> (stat, summed wastage bytes)</li>
+    </ul>
+
+    <h2 id="kubernetes">Kubernetes</h2>
+    <p>See <a href="./deployment.html#exporter">Deployment → Long-lived exporter</a> for the Deployment + Service + ServiceMonitor manifests.</p>
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Installation — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav">
+    <a href="./" class="active">docs</a>
+    <a href="../examples.html">examples</a>
+    <a href="https://github.com/jaybilgaye/iceberg-sentry">github</a>
+    <button class="theme-toggle" data-theme-toggle>dark</button>
+  </nav>
+</div></header>
+
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>Installation</h1>
+    <p class="muted">Iceberg Sentry is distributed as a single static binary (&lt; 20MB) and a Docker image. Build from source via Go is also supported.</p>
+
+    <div class="tabs" data-tab-group="install">
+      <button class="active" data-tab="curl">curl</button>
+      <button data-tab="brew">Homebrew</button>
+      <button data-tab="docker">Docker</button>
+      <button data-tab="helm">Helm</button>
+      <button data-tab="source">Source</button>
+    </div>
+
+    <div class="tab-panel active" data-tab="curl">
+<pre><span style="color:var(--accent)">$</span> curl -sSL https://get.icebergsentry.io/install.sh | bash
+<span style="color:var(--accent)">$</span> iceberg-sentry version
+iceberg-sentry 0.3.0 phase-3</pre>
+      <p class="small muted">Installs into <code>$HOME/.local/bin</code>. Override the target with <code>SENTRY_PREFIX=/usr/local bash</code>.</p>
+    </div>
+
+    <div class="tab-panel" data-tab="brew">
+<pre><span style="color:var(--accent)">$</span> brew tap jaybilgaye/iceberg-sentry
+<span style="color:var(--accent)">$</span> brew install iceberg-sentry</pre>
+    </div>
+
+    <div class="tab-panel" data-tab="docker">
+<pre><span style="color:var(--accent)">$</span> docker run --rm \
+    -v $PWD/warehouse:/data:ro \
+    ghcr.io/jaybilgaye/iceberg-sentry:latest \
+    audit --catalog localfs --catalog-root /data --table finance.transactions</pre>
+      <p class="small muted">Mount catalog credentials (AWS profile, keytab, etc.) as
+        read-only volumes. The image runs as UID 65534 by default.</p>
+    </div>
+
+    <div class="tab-panel" data-tab="helm">
+<pre><span style="color:var(--accent)">$</span> helm install sentry deploy/helm \
+    --set cronjob.enabled=true \
+    --set exporter.enabled=true \
+    --set serviceMonitor.enabled=true</pre>
+      <p class="small muted">See <a href="./deployment.html">Deployment</a> for the full chart reference.</p>
+    </div>
+
+    <div class="tab-panel" data-tab="source">
+<pre><span style="color:var(--accent)">$</span> git clone https://github.com/jaybilgaye/iceberg-sentry.git
+<span style="color:var(--accent)">$</span> cd iceberg-sentry
+<span style="color:var(--accent)">$</span> go build -o iceberg-sentry ./cmd/iceberg-sentry
+<span style="color:var(--accent)">$</span> ./iceberg-sentry version</pre>
+      <p class="small muted">Requires Go 1.23+. The repo contains no submodules; <code>go build</code> handles everything.</p>
+    </div>
+
+    <h2>Verify the install</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry --help
+iceberg-sentry audits Apache Iceberg tables for physical, metadata,
+performance, and cost-efficiency issues without requiring a running
+compute engine.
+
+Usage:
+  iceberg-sentry [command]
+
+Available Commands:
+  audit       Audit one or more Iceberg tables and report a health score
+  bench       Capture a baseline scan and compare against a fresh scan
+  cost        Snapshot cost timeline and tiered-storage recommendations
+  export      Long-lived Prometheus exporter (serves /metrics)
+  migration   On-prem HDFS → CDP Public Cloud Migration Readiness Audit
+  orphans     Report files in storage that no valid Iceberg snapshot references
+  pii         Sample Parquet row groups for PII and emit catalog-import findings
+  version     Print the iceberg-sentry version</pre>
+
+    <h2>System requirements</h2>
+    <ul>
+      <li>Linux (amd64, arm64), macOS (arm64, amd64), Windows (amd64)</li>
+      <li>No JVM required.</li>
+      <li>Memory: ≤ 256 MB for typical tables, ≤ 512 MB for 10M+ file tables (disk-backed Bloom kicks in &gt; 500k active files — Phase 4).</li>
+      <li>Network access only to your catalog + storage endpoints.</li>
+    </ul>
+
+    <h2>Next</h2>
+    <div class="toc-grid">
+      <a href="./quickstart.html"><span class="label">/quickstart</span><div class="desc">Audit a sample table in under 5 minutes.</div></a>
+      <a href="./catalogs.html"><span class="label">/catalogs</span><div class="desc">Configure Glue, Hive, REST (Polaris/Unity), or LocalFS.</div></a>
+    </div>
+  </main>
+</div>
+
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

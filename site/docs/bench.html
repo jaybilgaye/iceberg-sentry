@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>bench — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>bench</h1>
+    <p class="muted">Capture a labelled health snapshot, run your maintenance, re-scan, and print the delta. Turns a diagnostic into a number you can put in a PR description.</p>
+
+    <h2 id="subcommands">Subcommands</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry bench start    # capture
+<span style="color:var(--accent)">$</span> iceberg-sentry bench compare  # re-scan + diff</pre>
+
+    <h2 id="workflow">Workflow</h2>
+<pre><span style="color:var(--accent)">#</span> 1. Capture pre-maintenance baseline
+<span style="color:var(--accent)">$</span> iceberg-sentry bench start \
+    --catalog rest --rest http://catalog:8181 \
+    --table finance.transactions --tag pre-compact
+
+<span style="color:var(--accent)">#</span> 2. Run your compaction (Spark, CDE job, …)
+<span style="color:var(--accent)">$</span> spark-sql -e "CALL catalog.system.rewrite_data_files('finance.transactions')"
+
+<span style="color:var(--accent)">#</span> 3. Compare
+<span style="color:var(--accent)">$</span> iceberg-sentry bench compare \
+    --catalog rest --rest http://catalog:8181 \
+    --table finance.transactions --tag pre-compact</pre>
+
+    <div class="terminal">
+      <div class="term-head"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>~ bench compare</span></div>
+<pre>  Benchmark: finance.transactions  │  pre-compact → current
+  ────────────────────────────────────────────────────────────────────
+  Health Score:         <span class="term-warn">61</span>  →  <span class="term-ok">89</span>     <span class="term-ok">(+28)</span>
+  Data Files:       18,203  →  2,847  <span class="term-ok">(-84%)</span>
+  Manifest Files:    3,401  →  124    <span class="term-ok">(-96%)</span>
+  Position Deletes:  1,842  →  <span class="term-ok">0</span>      <span class="term-ok">(-100%)</span>
+  Avg File Size:     38 MB  →  241 MB</pre>
+    </div>
+
+    <h2 id="flags">Flags (shared by both subcommands)</h2>
+    <table class="flags">
+      <thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>--table</td><td><em>required</em></td><td>Fully qualified table id.</td></tr>
+        <tr><td>--tag</td><td>default</td><td>Label for this baseline (e.g. <code>pre-compact</code>).</td></tr>
+        <tr><td>--bench-dir</td><td>.sentry/bench</td><td>Where baselines are persisted on disk.</td></tr>
+      </tbody>
+    </table>
+
+    <p>Plus all catalog and storage flags from <a href="./audit.html">audit</a>.</p>
+
+    <h2 id="baseline-shape">Baseline file shape</h2>
+<pre>{
+  "table": "finance.transactions",
+  "tag": "pre-compact",
+  "captured_at": "2026-04-24T09:14:22Z",
+  "stats": {
+    "data_file_count": 18203,
+    "manifest_file_count": 3401,
+    "position_delete_files": 1842,
+    "data_file_total_bytes": 7891234567
+  },
+  "report": { ... full audit Report ... }
+}</pre>
+
+    <h2 id="ci-flow">In a CI workflow</h2>
+<pre>- name: Capture baseline
+  run: iceberg-sentry bench start --table finance.transactions --tag pr-{{ github.event.number }}
+
+- name: Apply Spark migration
+  run: ./scripts/run-compaction.sh
+
+- name: Diff and comment on PR
+  run: |
+    iceberg-sentry bench compare --table finance.transactions \
+        --tag pr-{{ github.event.number }} \
+      | gh pr comment ${{ github.event.number }} --body-file -</pre>
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>
