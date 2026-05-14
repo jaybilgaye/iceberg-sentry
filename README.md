@@ -4,27 +4,36 @@ Iceberg-native lakehouse reliability linter — see
 [`Iceberg_Sentry_Spec_v2.md`](./Iceberg_Sentry_Spec_v2.md) for the full
 product specification.
 
-This repository contains the **Phase 1 foundation**: an end-to-end working
-CLI that scores Apache Iceberg table health from metadata alone, with no
-compute engine required.
+This repository contains the working **Phase 1 + Phase 2** delivery: an
+end-to-end CLI that scores Apache Iceberg table health, finds orphan files,
+samples for PII, classifies write patterns, and produces SARIF-formatted
+output for CI gating — all from metadata alone, with no compute engine
+required.
 
-## What's in Phase 1
+## What's implemented
 
 | Capability                 | Status                              |
 |----------------------------|-------------------------------------|
 | Iceberg metadata JSON      | v1, v2, v3 (forward-compat parsing) |
-| Streaming Avro manifests   | manifest-list and manifest-file      |
-| Storage backends           | local FS, S3, WebHDFS                |
-| Catalogs                   | LocalFS, AWS Glue, Hive Metastore    |
-| Health dimensions          | file_size, delete_amplification, manifest_density, snapshot, format_version |
+| Streaming Avro manifests   | manifest-list and manifest-file     |
+| Storage backends           | local FS, S3, WebHDFS               |
+| Catalogs                   | LocalFS, AWS Glue, Hive Metastore, Iceberg REST |
+| Health dimensions          | file_size, delete_amplification, manifest_density, snapshot, partition_skew, format_version |
+| Write-pattern classifier   | streaming / batch / mixed / unknown |
+| Branch/tag-aware scanning  | `--branch <name>` flag              |
+| Orphan-file discovery      | Bloom-filter + storage crawl, dry-run, grace period |
+| PII scanner                | Parquet row-group sampling, regex + entropy, Atlas-compatible JSON |
+| `sentry bench`             | baseline persist + before/after diff |
 | CLI exit codes             | 0–5 per spec §3.1                   |
-| Output formats             | `text`, `json`                       |
+| Output formats             | `text`, `json`, `sarif`             |
 | Policy-as-code             | `sentry.yaml`                       |
-| Tests                      | unit + end-to-end against synthetic Avro fixtures |
+| GitHub Actions example     | SARIF upload + PR comment workflow  |
+| Integration harness        | docker-compose for MinIO + REST + HMS |
+| Tests                      | unit + end-to-end Avro/Parquet fixtures |
 
-Phase 2+ items (orphan-file discovery, PII scanner, partition skew, REST
-catalog, SARIF/Prometheus output, `sentry bench`) are not yet implemented;
-hooks are in place where they fit.
+Phase 3 items (Prometheus exporter, Cloudera SDX/Atlas wiring, Migration
+Readiness Audit, OAuth2/Kerberos for REST, disk-backed Bloom for 10M+
+file tables) remain on the roadmap.
 
 ## Build
 
@@ -63,6 +72,41 @@ iceberg-sentry audit \
   --fail-on warn
 ```
 
+Emit SARIF for GitHub Code Scanning:
+
+```
+iceberg-sentry audit \
+  --catalog rest --rest http://localhost:8181 \
+  --namespace finance \
+  --format sarif > iceberg.sarif
+```
+
+Find orphan files (dry-run, 6-hour grace window):
+
+```
+iceberg-sentry orphans \
+  --catalog rest --rest http://localhost:8181 \
+  --table finance.transactions \
+  --grace-period 6h
+```
+
+Sample for PII and write an Atlas-importable JSON payload:
+
+```
+iceberg-sentry pii \
+  --catalog glue --namespace finance \
+  --table finance.transactions \
+  --atlas-output atlas-import-$(date +%Y%m%d).json
+```
+
+Capture a baseline, run compaction, then compare:
+
+```
+iceberg-sentry bench start   --catalog rest --rest http://localhost:8181 --table finance.transactions --tag pre-compact
+# run your CALL ... rewrite_data_files
+iceberg-sentry bench compare --catalog rest --rest http://localhost:8181 --table finance.transactions --tag pre-compact
+```
+
 ## Development
 
 Run the full suite:
@@ -83,17 +127,24 @@ python scripts/gen_fixtures.py --root testdata/fixtures/generated
 ```
 cmd/iceberg-sentry/    CLI entry point
 internal/
-  cli/                 cobra commands and exit-code mapping
+  cli/                 cobra commands (audit, orphans, pii, bench, version)
   iceberg/             metadata JSON + Avro manifest parsers
   storage/             local, S3, WebHDFS storage backends
-  catalog/             LocalFS, Glue, Hive Metastore adapters
+  catalog/             LocalFS, Glue, Hive Metastore, REST adapters
   scan/                orchestration: catalog → metadata → manifests → stats
-  health/              composite score and per-dimension diagnostics
-  output/              text and json renderers
+  health/              composite score + per-dimension diagnostics
+  bloom/               double-hashed Bloom filter for orphan tracking
+  writepattern/        streaming/batch classifier
+  orphans/             differential storage-vs-metadata scan
+  pii/                 Parquet row-group sampler + regex/entropy detector
+  output/              text, json, SARIF renderers
   policy/              sentry.yaml parser and threshold application
   exitcode/            shared exit-code constants
-examples/sentry.yaml   sample policy
-scripts/gen_fixtures.py pyiceberg integration-fixture generator
+examples/
+  sentry.yaml                       sample policy
+  github-actions/iceberg-health.yml SARIF + PR-comment workflow
+scripts/gen_fixtures.py             pyiceberg integration-fixture generator
+testdata/integration/               docker-compose harness (MinIO + REST + HMS)
 ```
 
 ## License

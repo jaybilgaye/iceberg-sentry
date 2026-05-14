@@ -13,6 +13,7 @@ import (
 
 	"github.com/jaybilgaye/iceberg-sentry/internal/catalog"
 	"github.com/jaybilgaye/iceberg-sentry/internal/catalog/hive"
+	"github.com/jaybilgaye/iceberg-sentry/internal/catalog/rest"
 	"github.com/jaybilgaye/iceberg-sentry/internal/exitcode"
 	"github.com/jaybilgaye/iceberg-sentry/internal/health"
 	"github.com/jaybilgaye/iceberg-sentry/internal/output"
@@ -25,10 +26,12 @@ type auditFlags struct {
 	catalogKind string
 	catalogRoot string
 	hiveAddr    string
+	restURL     string
 	glueCatalog string
 	hdfsURL     string
 	tableID     string
 	namespace   string
+	branch      string
 	policyPath  string
 	format      string
 	failOn      string
@@ -48,15 +51,17 @@ with --namespace every Iceberg table under the namespace is scored.`,
 		},
 	}
 	flags := cmd.Flags()
-	flags.StringVar(&f.catalogKind, "catalog", "localfs", "catalog adapter: localfs|glue|hive")
+	flags.StringVar(&f.catalogKind, "catalog", "localfs", "catalog adapter: localfs|glue|hive|rest")
 	flags.StringVar(&f.catalogRoot, "catalog-root", "", "root directory for the localfs catalog")
 	flags.StringVar(&f.hiveAddr, "hive", "", "host:port for the hive metastore (used when --catalog=hive)")
+	flags.StringVar(&f.restURL, "rest", "", "Iceberg REST catalog base URL (used when --catalog=rest)")
 	flags.StringVar(&f.glueCatalog, "glue-catalog", "", "AWS account ID owning the Glue catalog (cross-account)")
 	flags.StringVar(&f.hdfsURL, "hdfs", "", "WebHDFS root URL (e.g. https://namenode:14000/webhdfs/v1)")
 	flags.StringVar(&f.tableID, "table", "", "fully qualified table identifier (namespace.table)")
 	flags.StringVar(&f.namespace, "namespace", "", "namespace to audit (all Iceberg tables in it)")
+	flags.StringVar(&f.branch, "branch", "", "Iceberg branch to scan (default: main)")
 	flags.StringVar(&f.policyPath, "policy", "", "path to sentry.yaml")
-	flags.StringVar(&f.format, "format", "text", "output format: text|json")
+	flags.StringVar(&f.format, "format", "text", "output format: text|json|sarif")
 	flags.StringVar(&f.failOn, "fail-on", "critical", "minimum severity that exits non-zero: warn|critical|never")
 	flags.BoolVar(&f.pathStyle, "s3-path-style", false, "use S3 path-style addressing (MinIO/LocalStack)")
 	return cmd
@@ -68,7 +73,7 @@ func runAudit(ctx context.Context, stdout, stderr io.Writer, f *auditFlags) erro
 		return &codedError{code: exitcode.ConfigError, err: err}
 	}
 
-	cat, err := buildCatalog(ctx, f)
+	cat, err := buildCatalogFromAudit(ctx, f)
 	if err != nil {
 		return &codedError{code: exitcode.ConnectionFail, err: err}
 	}
@@ -111,6 +116,9 @@ func runAudit(ctx context.Context, stdout, stderr io.Writer, f *auditFlags) erro
 	}
 
 	engine := scan.NewEngine(cat, res)
+	if f.branch != "" {
+		engine.Branch = f.branch
+	}
 	worst := exitcode.OK
 	for _, id := range ids {
 		t := thresholds
@@ -140,7 +148,7 @@ func runAudit(ctx context.Context, stdout, stderr io.Writer, f *auditFlags) erro
 	return nil
 }
 
-func buildCatalog(ctx context.Context, f *auditFlags) (catalog.Catalog, error) {
+func buildCatalogFromAudit(ctx context.Context, f *auditFlags) (catalog.Catalog, error) {
 	switch strings.ToLower(f.catalogKind) {
 	case "localfs", "local":
 		root := f.catalogRoot
@@ -163,6 +171,11 @@ func buildCatalog(ctx context.Context, f *auditFlags) (catalog.Catalog, error) {
 			return nil, fmt.Errorf("--hive: %w", err)
 		}
 		return hive.New(host, port), nil
+	case "rest":
+		if f.restURL == "" {
+			return nil, errors.New("--rest is required for the rest catalog")
+		}
+		return rest.New(f.restURL), nil
 	default:
 		return nil, fmt.Errorf("unknown catalog %q", f.catalogKind)
 	}

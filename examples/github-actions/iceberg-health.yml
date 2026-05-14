@@ -1,0 +1,65 @@
+name: Iceberg Table Health Gate
+
+on:
+  push:
+    paths:
+      - 'pipelines/finance/**'
+      - 'sentry.yaml'
+  pull_request:
+  schedule:
+    - cron: '0 6 * * *'
+
+permissions:
+  contents: read
+  security-events: write   # required for SARIF upload
+  pull-requests: write     # required for PR comments
+
+jobs:
+  iceberg-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build iceberg-sentry
+        run: go build -o iceberg-sentry ./cmd/iceberg-sentry
+
+      # AWS credentials (Glue + S3). Use OIDC for short-lived creds.
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.ICEBERG_AUDIT_ROLE }}
+          aws-region: us-east-1
+
+      - name: Run Iceberg audit (SARIF)
+        run: |
+          ./iceberg-sentry audit \
+            --catalog glue \
+            --namespace finance \
+            --policy sentry.yaml \
+            --format sarif \
+            --fail-on warn > iceberg-results.sarif
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: iceberg-results.sarif
+          category: iceberg-health
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request'
+        run: |
+          ./iceberg-sentry audit \
+            --catalog glue \
+            --namespace finance \
+            --policy sentry.yaml \
+            --format json | tee report.json
+          jq -r '"## Iceberg Health\n- Table: `\(.table)`\n- Score: \(.score)/\(.max_score) (\(.worst_severity))\n- Write pattern: \(.write_pattern // "n/a")"' report.json \
+            | gh pr comment ${{ github.event.number }} --body-file -
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

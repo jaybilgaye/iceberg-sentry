@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"sort"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/jaybilgaye/iceberg-sentry/internal/health"
 	"github.com/jaybilgaye/iceberg-sentry/internal/iceberg"
 	"github.com/jaybilgaye/iceberg-sentry/internal/storage"
+	"github.com/jaybilgaye/iceberg-sentry/internal/writepattern"
 )
 
 // Engine performs scans against a single (catalog, storage) pair.
@@ -23,6 +25,9 @@ type Engine struct {
 	Storage *storage.Resolver
 	// Now is injected so tests can pin "current time" for snapshot age math.
 	Now func() time.Time
+	// Branch optionally scans an Iceberg branch other than the table's
+	// current-snapshot pointer. Empty means "scan current-snapshot-id".
+	Branch string
 }
 
 // NewEngine constructs a scan engine.
@@ -57,6 +62,9 @@ func (e *Engine) Scan(ctx context.Context, id catalog.TableID, t health.Threshol
 
 	report := health.Score(id.String(), e.Catalog.Name(), stats, t)
 	report.ScanDurationMS = time.Since(start).Milliseconds()
+	if e.Branch != "" {
+		report.Branch = e.Branch
+	}
 	return &Result{Report: report, Stats: *stats, Entry: entry}, nil
 }
 
@@ -88,9 +96,15 @@ func (e *Engine) collectStats(ctx context.Context, md *iceberg.TableMetadata, me
 		}
 	}
 
-	cur := md.CurrentSnapshot()
+	// Classify write pattern from the recent snapshot history.
+	wp := writepattern.Classify(md.Snapshots, writepattern.Defaults())
+	stats.WritePattern = wp.Pattern
+	stats.AvgCommitIntervalMs = wp.AvgCommitIntervalMs
+	stats.AvgFilesPerCommit = wp.AvgFilesPerCommit
+
+	cur := e.resolveSnapshot(md)
 	if cur == nil {
-		// No current snapshot — empty table or staging-only. Stats are valid as-is.
+		// No matching snapshot — empty table, staging-only, or unknown branch.
 		return stats, nil
 	}
 	stats.SnapshotID = cur.SnapshotID
@@ -104,14 +118,52 @@ func (e *Engine) collectStats(ctx context.Context, md *iceberg.TableMetadata, me
 		stats.ManifestListFileCount = 1
 	}
 
+	partitionAgg := map[string]*health.PartitionStats{}
 	for _, m := range manifests {
 		uri := resolveSibling(metadataURI, m.Path)
-		if err := e.scanManifest(ctx, uri, m, stats); err != nil {
+		if err := e.scanManifest(ctx, uri, m, stats, partitionAgg); err != nil {
 			return nil, err
 		}
 	}
+	stats.Partitions = flattenPartitions(partitionAgg)
 
 	return stats, nil
+}
+
+// resolveSnapshot picks the snapshot to scan. With Engine.Branch set, it
+// looks up md.Refs[Branch] and finds that snapshot in md.Snapshots; falls
+// back to current-snapshot if the branch is missing.
+func (e *Engine) resolveSnapshot(md *iceberg.TableMetadata) *iceberg.Snapshot {
+	target := md.CurrentSnapshotID
+	if e.Branch != "" {
+		if ref, ok := md.Refs[e.Branch]; ok {
+			target = ref.SnapshotID
+		} else {
+			// Unknown branch: caller will see SnapshotID=0 in stats.
+			return nil
+		}
+	}
+	if target == 0 {
+		return nil
+	}
+	for i := range md.Snapshots {
+		if md.Snapshots[i].SnapshotID == target {
+			return &md.Snapshots[i]
+		}
+	}
+	return nil
+}
+
+func flattenPartitions(m map[string]*health.PartitionStats) []health.PartitionStats {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make([]health.PartitionStats, 0, len(m))
+	for _, v := range m {
+		out = append(out, *v)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Bytes > out[j].Bytes })
+	return out
 }
 
 func (e *Engine) loadManifests(ctx context.Context, snap *iceberg.Snapshot, metadataURI string) ([]iceberg.ManifestFile, error) {
@@ -132,7 +184,13 @@ func (e *Engine) loadManifests(ctx context.Context, snap *iceberg.Snapshot, meta
 	return out, nil
 }
 
-func (e *Engine) scanManifest(ctx context.Context, uri string, m iceberg.ManifestFile, stats *health.Stats) error {
+func (e *Engine) scanManifest(
+	ctx context.Context,
+	uri string,
+	m iceberg.ManifestFile,
+	stats *health.Stats,
+	partitions map[string]*health.PartitionStats,
+) error {
 	rc, err := e.Storage.Open(ctx, uri)
 	if err != nil {
 		return fmt.Errorf("open manifest %s: %w", uri, err)
@@ -156,6 +214,16 @@ func (e *Engine) scanManifest(ctx context.Context, uri string, m iceberg.Manifes
 			if len(stats.DataFileSizes) < 1024 {
 				stats.DataFileSizes = append(stats.DataFileSizes, df.FileSizeBytes)
 			}
+			if key := partitionKey(df); key != "" {
+				p := partitions[key]
+				if p == nil {
+					p = &health.PartitionStats{Key: key}
+					partitions[key] = p
+				}
+				p.FileCount++
+				p.Bytes += df.FileSizeBytes
+				p.Rows += df.RecordCount
+			}
 		case iceberg.FileContentPositionDeletes:
 			stats.PositionDeleteFiles++
 			stats.DeleteFileTotalBytes += df.FileSizeBytes
@@ -165,6 +233,29 @@ func (e *Engine) scanManifest(ctx context.Context, uri string, m iceberg.Manifes
 		}
 		return nil
 	})
+}
+
+// partitionKey serialises a manifest entry's partition values into a stable
+// composite key. Returns "" for unpartitioned tables.
+func partitionKey(df iceberg.DataFile) string {
+	if len(df.Partition) == 0 {
+		return ""
+	}
+	keys := make([]string, 0, len(df.Partition))
+	for k := range df.Partition {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteByte('/')
+		}
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(fmt.Sprint(df.Partition[k]))
+	}
+	return b.String()
 }
 
 // resolveSibling joins ref against base when ref is relative. Iceberg

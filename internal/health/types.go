@@ -54,12 +54,33 @@ type Report struct {
 	Catalog        string      `json:"catalog"`
 	FormatVersion  int         `json:"format_version"`
 	SnapshotID     int64       `json:"snapshot_id"`
+	Branch         string      `json:"branch,omitempty"`
+	WritePattern   string      `json:"write_pattern,omitempty"`
 	Score          int         `json:"score"`
 	MaxScore       int         `json:"max_score"`
 	WorstSeverity  Severity    `json:"worst_severity"`
 	Dimensions     []Dimension `json:"dimensions"`
 	ScanDurationMS int64       `json:"scan_duration_ms"`
 	WastageBytes   int64       `json:"estimated_wastage_bytes"`
+}
+
+// WritePattern classifies how the table is being written to. It directly
+// affects health-score thresholds via the policy engine.
+type WritePattern string
+
+const (
+	WritePatternUnknown   WritePattern = "unknown"
+	WritePatternStreaming WritePattern = "streaming"
+	WritePatternBatch     WritePattern = "batch"
+	WritePatternMixed     WritePattern = "mixed"
+)
+
+// PartitionStats summarises one partition's data-file footprint.
+type PartitionStats struct {
+	Key       string `json:"key"`
+	FileCount int64  `json:"file_count"`
+	Bytes     int64  `json:"bytes"`
+	Rows      int64  `json:"rows"`
 }
 
 // Stats is the aggregate input to scoring. It is filled in by the scan engine
@@ -84,6 +105,15 @@ type Stats struct {
 	SnapshotCount       int
 	OldestSnapshotAgeMs int64
 	NewestSnapshotAgeMs int64
+
+	// Partition statistics — populated by the scan engine when the table
+	// has any partitioning. Empty for unpartitioned tables.
+	Partitions []PartitionStats
+
+	// Write-pattern classifier outputs.
+	WritePattern         WritePattern
+	AvgCommitIntervalMs  int64
+	AvgFilesPerCommit    float64
 }
 
 // HasDataFiles is a convenience accessor used by several dimensions.

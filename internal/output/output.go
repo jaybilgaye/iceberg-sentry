@@ -15,8 +15,9 @@ import (
 type Format string
 
 const (
-	FormatText Format = "text"
-	FormatJSON Format = "json"
+	FormatText  Format = "text"
+	FormatJSON  Format = "json"
+	FormatSARIF Format = "sarif"
 )
 
 // ParseFormat resolves the user-supplied format string.
@@ -26,8 +27,10 @@ func ParseFormat(s string) (Format, error) {
 		return FormatText, nil
 	case "json":
 		return FormatJSON, nil
+	case "sarif":
+		return FormatSARIF, nil
 	default:
-		return "", fmt.Errorf("unsupported output format %q (text|json)", s)
+		return "", fmt.Errorf("unsupported output format %q (text|json|sarif)", s)
 	}
 }
 
@@ -36,6 +39,8 @@ func Render(w io.Writer, r health.Report, fmtKind Format) error {
 	switch fmtKind {
 	case FormatJSON:
 		return renderJSON(w, r)
+	case FormatSARIF:
+		return renderSARIF(w, r)
 	default:
 		return renderText(w, r)
 	}

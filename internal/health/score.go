@@ -38,11 +38,23 @@ func Defaults() Thresholds {
 
 // Score computes the composite health report.
 func Score(table, catalogName string, s *Stats, t Thresholds) Report {
+	// Streaming write patterns get more lenient file-size thresholds —
+	// flink/streaming-ingested tables have legitimately small files until
+	// downstream compaction lands.
+	effective := t
+	if s.WritePattern == WritePatternStreaming {
+		effective.MinFileSizeBytes = t.MinFileSizeBytes / 4
+		if effective.MinFileSizeBytes < 16*1024*1024 {
+			effective.MinFileSizeBytes = 16 * 1024 * 1024
+		}
+	}
+
 	dims := []Dimension{
-		fileSizeDimension(s, t),
-		deleteAmplificationDimension(s, t),
-		manifestDensityDimension(s, t),
-		snapshotDimension(s, t),
+		fileSizeDimension(s, effective),
+		deleteAmplificationDimension(s, effective),
+		manifestDensityDimension(s, effective),
+		snapshotDimension(s, effective),
+		partitionSkewDimension(s),
 		formatVersionDimension(s),
 	}
 	r := Report{
@@ -50,6 +62,7 @@ func Score(table, catalogName string, s *Stats, t Thresholds) Report {
 		Catalog:       catalogName,
 		FormatVersion: s.FormatVersion,
 		SnapshotID:    s.SnapshotID,
+		WritePattern:  string(s.WritePattern),
 		Dimensions:    dims,
 	}
 	worst := SeverityOK
@@ -156,6 +169,101 @@ func snapshotDimension(s *Stats, t Thresholds) Dimension {
 	}
 	d.Summary = fmt.Sprintf("%d snapshots; oldest %s", s.SnapshotCount, formatDuration(oldest))
 	return d
+}
+
+func partitionSkewDimension(s *Stats) Dimension {
+	const max = 15
+	d := Dimension{Name: "partition_skew", MaxScore: max, Severity: SeverityOK, Score: max}
+	if len(s.Partitions) < 2 {
+		d.Summary = "single partition or unpartitioned — skew not applicable"
+		return d
+	}
+	cv, hot, sparse := skewMetrics(s.Partitions)
+	switch {
+	case cv >= 1.0:
+		d.Severity = SeverityCritical
+		d.Score = 5
+		d.Remediation = "re-partition hot keys or bucket the partition column"
+	case cv >= 0.5:
+		d.Severity = SeverityWarning
+		d.Score = 9
+		d.Remediation = "consider bucketing or re-partitioning hot keys"
+	}
+	d.Summary = fmt.Sprintf("CV=%.2f across %d partitions (%d hot, %d sparse)", cv, len(s.Partitions), hot, sparse)
+	return d
+}
+
+// skewMetrics returns (coefficient of variation, hot count, sparse count).
+// Hot partitions are >2× the median; sparse are <10% of the median.
+func skewMetrics(parts []PartitionStats) (float64, int, int) {
+	n := float64(len(parts))
+	if n == 0 {
+		return 0, 0, 0
+	}
+	var sum float64
+	for _, p := range parts {
+		sum += float64(p.Bytes)
+	}
+	mean := sum / n
+	if mean == 0 {
+		return 0, 0, 0
+	}
+	var variance float64
+	for _, p := range parts {
+		d := float64(p.Bytes) - mean
+		variance += d * d
+	}
+	stddev := 0.0
+	if n > 1 {
+		stddev = sqrtNonNeg(variance / n)
+	}
+	cv := stddev / mean
+
+	median := medianBytes(parts)
+	var hot, sparse int
+	for _, p := range parts {
+		switch {
+		case median > 0 && float64(p.Bytes) > 2*float64(median):
+			hot++
+		case median > 0 && float64(p.Bytes) < 0.1*float64(median):
+			sparse++
+		}
+	}
+	return cv, hot, sparse
+}
+
+func medianBytes(parts []PartitionStats) int64 {
+	if len(parts) == 0 {
+		return 0
+	}
+	vals := make([]int64, len(parts))
+	for i, p := range parts {
+		vals[i] = p.Bytes
+	}
+	// Insertion sort is fine — partition counts here are small (hundreds, not
+	// millions; manifest aggregation pre-groups).
+	for i := 1; i < len(vals); i++ {
+		for j := i; j > 0 && vals[j-1] > vals[j]; j-- {
+			vals[j-1], vals[j] = vals[j], vals[j-1]
+		}
+	}
+	mid := len(vals) / 2
+	if len(vals)%2 == 1 {
+		return vals[mid]
+	}
+	return (vals[mid-1] + vals[mid]) / 2
+}
+
+func sqrtNonNeg(x float64) float64 {
+	if x <= 0 {
+		return 0
+	}
+	// Avoid pulling in math for one call — Newton's method converges fast.
+	z := x / 2
+	for i := 0; i < 12; i++ {
+		z = (z + x/z) / 2
+	}
+	return z
 }
 
 func formatVersionDimension(s *Stats) Dimension {
