@@ -1,2 +1,2 @@
-pyiceberg[pyarrow,sql-sqlite]>=0.7.0
+pyiceberg[pyarrow,sql-sqlite]>=0.11.1
 pyarrow>=15.0.0
