@@ -743,4 +743,4 @@ The `sentry bench` command — measuring health score improvement from 61 to 89 
 
 ---
 
-*Iceberg Sentry · github.com/[username]/iceberg-sentry · Apache 2.0 License*
+*Iceberg Sentry · github.com/jaybilgaye/iceberg-sentry · Apache 2.0 License*
