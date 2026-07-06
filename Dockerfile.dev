@@ -17,7 +17,7 @@ RUN CGO_ENABLED=0 go build \
     -o /out/iceberg-sentry \
     ./cmd/iceberg-sentry
 
-FROM alpine:3.20 AS certs
+FROM alpine:3.24 AS certs
 RUN apk --no-cache add ca-certificates
 
 FROM scratch

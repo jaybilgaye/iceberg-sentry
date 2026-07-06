@@ -1,6 +1,6 @@
 # Multi-stage build. GoReleaser injects the pre-built binary via COPY.
 # For local builds, use `docker build -f Dockerfile.dev .` (source-based).
-FROM --platform=$BUILDPLATFORM alpine:3.20 AS certs
+FROM --platform=$BUILDPLATFORM alpine:3.24 AS certs
 RUN apk --no-cache add ca-certificates
 
 FROM scratch
