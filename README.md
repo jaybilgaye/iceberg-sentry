@@ -1,5 +1,5 @@
 <p align="center">
-  <a href="https://icebergsentry.io">
+  <a href="https://github.com/jaybilgaye/iceberg-sentry">
     <img src="./assets/banner.svg" alt="Iceberg Sentry — lakehouse reliability, before it costs you a query." width="100%" />
   </a>
 </p>
@@ -24,12 +24,16 @@
 </p>
 
 <p align="center">
-  <a href="https://icebergsentry.io"><b>Website</b></a> ·
-  <a href="https://icebergsentry.io/docs/"><b>Docs</b></a> ·
-  <a href="https://icebergsentry.io/docs/quickstart.html"><b>Quickstart</b></a> ·
-  <a href="https://icebergsentry.io/examples.html"><b>Examples</b></a> ·
+  <a href="./site/docs/"><b>Docs</b></a> ·
+  <a href="./site/docs/quickstart.html"><b>Quickstart</b></a> ·
+  <a href="./site/examples.html"><b>Examples</b></a> ·
   <a href="./Iceberg_Sentry_Spec_v2.md"><b>Spec</b></a> ·
-  <a href="https://github.com/jaybilgaye/iceberg-sentry/discussions"><b>Discussions</b></a>
+  <a href="https://github.com/jaybilgaye/iceberg-sentry/discussions"><b>Discussions</b></a> ·
+  <a href="https://github.com/jaybilgaye/iceberg-sentry/releases"><b>Releases</b></a>
+</p>
+
+<p align="center">
+  <sub>Docs render as a static site under <a href="./site/"><code>site/</code></a>. Enable GitHub Pages (Settings → Pages → <code>main</code> / <code>site</code>) to serve them at <code>jaybilgaye.github.io/iceberg-sentry</code>, or read them locally with <code>make site-serve</code>.</sub>
 </p>
 
 ```
@@ -55,7 +59,7 @@
 
 ```sh
 # macOS / Linux
-curl -sSL https://get.icebergsentry.io/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/jaybilgaye/iceberg-sentry/main/scripts/install.sh | sh
 ```
 
 </td>
@@ -178,7 +182,7 @@ Migration Readiness — flags absolute paths, HDFS-specific properties, v1 table
 
 ```bash
 # 1. Install
-curl -sSL https://get.icebergsentry.io/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/jaybilgaye/iceberg-sentry/main/scripts/install.sh | sh
 
 # 2. Generate a real Iceberg warehouse (pyiceberg-written v2 tables)
 pip install "pyiceberg[pyarrow,sql-sqlite]>=0.7.0"
@@ -209,13 +213,13 @@ That's the whole workflow. No config file, no compute cluster, no Spark session.
 
 <table>
 <tr><th align="left" width="140">Command</th><th align="left">What it does</th></tr>
-<tr><td><a href="https://icebergsentry.io/docs/audit.html"><code>audit</code></a></td>       <td>Score table health across six dimensions. The one you'll wire into CI.</td></tr>
-<tr><td><a href="https://icebergsentry.io/docs/orphans.html"><code>orphans</code></a></td>   <td>Find files in storage that no valid snapshot references.</td></tr>
-<tr><td><a href="https://icebergsentry.io/docs/pii.html"><code>pii</code></a></td>           <td>Stream-sample Parquet row groups for PII. Zero disk persistence.</td></tr>
-<tr><td><a href="https://icebergsentry.io/docs/bench.html"><code>bench</code></a></td>       <td>Capture a baseline; compare after maintenance. Measures compactions.</td></tr>
-<tr><td><a href="https://icebergsentry.io/docs/migration.html"><code>migration</code></a></td><td>HDFS → CDP Public Cloud migration readiness audit.</td></tr>
-<tr><td><a href="https://icebergsentry.io/docs/cost.html"><code>cost</code></a></td>         <td>Snapshot cost timeline + cold-tier candidates.</td></tr>
-<tr><td><a href="https://icebergsentry.io/docs/export.html"><code>export</code></a></td>     <td>Long-lived Prometheus `/metrics` + `/healthz` server.</td></tr>
+<tr><td><a href="./site/docs/audit.html"><code>audit</code></a></td>       <td>Score table health across six dimensions. The one you'll wire into CI.</td></tr>
+<tr><td><a href="./site/docs/orphans.html"><code>orphans</code></a></td>   <td>Find files in storage that no valid snapshot references.</td></tr>
+<tr><td><a href="./site/docs/pii.html"><code>pii</code></a></td>           <td>Stream-sample Parquet row groups for PII. Zero disk persistence.</td></tr>
+<tr><td><a href="./site/docs/bench.html"><code>bench</code></a></td>       <td>Capture a baseline; compare after maintenance. Measures compactions.</td></tr>
+<tr><td><a href="./site/docs/migration.html"><code>migration</code></a></td><td>HDFS → CDP Public Cloud migration readiness audit.</td></tr>
+<tr><td><a href="./site/docs/cost.html"><code>cost</code></a></td>         <td>Snapshot cost timeline + cold-tier candidates.</td></tr>
+<tr><td><a href="./site/docs/export.html"><code>export</code></a></td>     <td>Long-lived Prometheus `/metrics` + `/healthz` server.</td></tr>
 </table>
 
 ## Wire it into CI
@@ -233,7 +237,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install
-        run: curl -sSL https://get.icebergsentry.io/install.sh | sh
+        run: |
+          gh release download v0.3.0 --repo jaybilgaye/iceberg-sentry \
+             --pattern "iceberg-sentry_*_linux_x86_64.tar.gz"
+          tar -xzf iceberg-sentry_*_linux_x86_64.tar.gz
+          sudo install -m0755 iceberg-sentry /usr/local/bin/
 
       - name: Audit
         run: |
@@ -325,7 +333,7 @@ helm install sentry deploy/helm \
 - ConfigMap holding `sentry.yaml` inline
 - ServiceAccount with pod-security defaults (`runAsNonRoot`, `readOnlyRootFilesystem`, dropped capabilities)
 
-Full chart reference: [docs / Deployment](https://icebergsentry.io/docs/deployment.html).
+Full chart reference: [docs / Deployment](./site/docs/deployment.html).
 
 </details>
 
@@ -512,5 +520,5 @@ Apache 2.0. See [`LICENSE`](./LICENSE) and [`NOTICE`](./NOTICE).
 
 <p align="center">
   <sub>Built with care for the people who get paged when a table gets slow.</sub><br>
-  <sub><a href="https://icebergsentry.io">icebergsentry.io</a>  ·  Apache 2.0  ·  Iceberg v1 / v2 / v3</sub>
+  <sub><a href="https://github.com/jaybilgaye/iceberg-sentry">github.com/jaybilgaye/iceberg-sentry</a>  ·  Apache 2.0  ·  Iceberg v1 / v2 / v3</sub>
 </p>

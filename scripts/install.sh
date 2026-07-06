@@ -4,7 +4,7 @@
 # Iceberg Sentry installer.
 #
 # Usage:
-#   curl -sSL https://get.icebergsentry.io/install.sh | sh
+#   curl -sSL https://raw.githubusercontent.com/jaybilgaye/iceberg-sentry/main/scripts/install.sh | sh
 #
 # Environment overrides:
 #   SENTRY_VERSION   — specific version (e.g. v0.3.0). Default: latest release.

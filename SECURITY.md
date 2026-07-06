@@ -14,12 +14,9 @@ minor release; older minors get patches only for critical CVEs.
 
 **Do not open a public GitHub issue for security reports.**
 
-Please report vulnerabilities via one of:
-
-1. **GitHub Security Advisories** — the preferred channel.
-   [Report a vulnerability here](https://github.com/jaybilgaye/iceberg-sentry/security/advisories/new).
-2. **Email** — `security@icebergsentry.io` (encrypted with the PGP key at
-   <https://icebergsentry.io/.well-known/pgp>, if applicable).
+Please report vulnerabilities via **GitHub Security Advisories** — the
+only supported channel.
+[Report a vulnerability here](https://github.com/jaybilgaye/iceberg-sentry/security/advisories/new).
 
 Expect an acknowledgement within 3 business days and a status update at
 least every 7 days until the issue is resolved.

@@ -85,7 +85,7 @@ release:
   header: |
     ## Iceberg Sentry {{ .Tag }}
     Iceberg-native lakehouse reliability linter. See the
-    [documentation site](https://icebergsentry.io/docs/) for install
+    [documentation site](https://jaybilgaye.github.io/iceberg-sentry/docs/) for install
     instructions and full usage.
   footer: |
     ---

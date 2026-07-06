@@ -7,17 +7,17 @@
 <link rel="stylesheet" href="assets/css/main.css" />
 <meta name="description" content="Copy-paste workflows for auditing Iceberg tables, dry-running orphan discovery, sampling for PII, and pushing Prometheus metrics from CronJobs." />
 <meta name="theme-color" content="#0a0a0a" />
-<link rel="canonical" href="https://icebergsentry.io/examples.html" />
+<link rel="canonical" href="https://jaybilgaye.github.io/iceberg-sentry/examples.html" />
 <link rel="icon" type="image/svg+xml" href="assets/img/favicon.svg" />
 <meta property="og:type" content="website" />
 <meta property="og:title" content="Examples — Iceberg Sentry" />
 <meta property="og:description" content="Copy-paste workflows for auditing Iceberg tables, dry-running orphan discovery, sampling for PII, and pushing Prometheus metrics from CronJobs." />
-<meta property="og:image" content="https://icebergsentry.io/assets/img/og.svg" />
-<meta property="og:url" content="https://icebergsentry.io/examples.html" />
+<meta property="og:image" content="https://jaybilgaye.github.io/iceberg-sentry/assets/img/og.svg" />
+<meta property="og:url" content="https://jaybilgaye.github.io/iceberg-sentry/examples.html" />
 <meta name="twitter:card" content="summary_large_image" />
 <meta name="twitter:title" content="Examples — Iceberg Sentry" />
 <meta name="twitter:description" content="Copy-paste workflows for auditing Iceberg tables, dry-running orphan discovery, sampling for PII, and pushing Prometheus metrics from CronJobs." />
-<meta name="twitter:image" content="https://icebergsentry.io/assets/img/og.svg" />
+<meta name="twitter:image" content="https://jaybilgaye.github.io/iceberg-sentry/assets/img/og.svg" />
 </head>
 <body>
 <header class="topbar"><div class="topbar-inner">
@@ -70,7 +70,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install
-        run: curl -sSL https://get.icebergsentry.io/install.sh | bash
+        run: curl -sSL https://raw.githubusercontent.com/jaybilgaye/iceberg-sentry/main/scripts/install.sh | bash
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.ICEBERG_AUDIT_ROLE }}

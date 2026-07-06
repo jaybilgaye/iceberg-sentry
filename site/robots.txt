@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://icebergsentry.io/sitemap.xml
+Sitemap: https://jaybilgaye.github.io/iceberg-sentry/sitemap.xml
