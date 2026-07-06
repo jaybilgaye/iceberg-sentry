@@ -24,10 +24,10 @@ func TestScoreHealthyV2Table(t *testing.T) {
 
 func TestScoreCriticalDeleteAmplification(t *testing.T) {
 	s := &Stats{
-		FormatVersion:        2,
-		DataFileCount:        100,
-		PositionDeleteFiles:  60,
-		EqualityDeleteFiles:  10,
+		FormatVersion:       2,
+		DataFileCount:       100,
+		PositionDeleteFiles: 60,
+		EqualityDeleteFiles: 10,
 	}
 	r := Score("a.b", "test", s, Defaults())
 	var dim *Dimension

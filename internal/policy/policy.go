@@ -16,18 +16,18 @@ import (
 
 // Policy is one sentry.yaml entry.
 type Policy struct {
-	Name             string  `yaml:"name"`
-	TargetNamespace  string  `yaml:"target_namespace"`
-	MinFileSizeMB    int64   `yaml:"min_file_size_mb"`
-	MaxManifestFiles int64   `yaml:"max_manifest_files"`
-	MaxSnapshotAge   string  `yaml:"max_snapshot_age"`
-	DeleteRatioWarn  float64 `yaml:"delete_file_ratio_warn"`
-	DeleteRatioFail  float64 `yaml:"delete_file_ratio_fail"`
-	MinHealthScore   int     `yaml:"min_health_score"`
-	WritePattern     string  `yaml:"write_pattern"`
-	FailOnOrphans    bool    `yaml:"fail_on_orphans"`
-	FailOnPIIUntagged bool   `yaml:"fail_on_pii_untagged"`
-	PIIScan          bool    `yaml:"pii_scan"`
+	Name              string  `yaml:"name"`
+	TargetNamespace   string  `yaml:"target_namespace"`
+	MinFileSizeMB     int64   `yaml:"min_file_size_mb"`
+	MaxManifestFiles  int64   `yaml:"max_manifest_files"`
+	MaxSnapshotAge    string  `yaml:"max_snapshot_age"`
+	DeleteRatioWarn   float64 `yaml:"delete_file_ratio_warn"`
+	DeleteRatioFail   float64 `yaml:"delete_file_ratio_fail"`
+	MinHealthScore    int     `yaml:"min_health_score"`
+	WritePattern      string  `yaml:"write_pattern"`
+	FailOnOrphans     bool    `yaml:"fail_on_orphans"`
+	FailOnPIIUntagged bool    `yaml:"fail_on_pii_untagged"`
+	PIIScan           bool    `yaml:"pii_scan"`
 }
 
 // File is the top-level sentry.yaml document.

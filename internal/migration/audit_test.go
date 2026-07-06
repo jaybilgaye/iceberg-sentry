@@ -40,9 +40,9 @@ func TestAuditHDFSPropertyAndPathHigh(t *testing.T) {
 
 func TestAuditV1IsMedium(t *testing.T) {
 	md := &iceberg.TableMetadata{
-		FormatVersion: 1,
-		Location:      "s3://bucket/finance/transactions",
-		Snapshots: []iceberg.Snapshot{{SnapshotID: 1, ManifestList: "s3://bucket/m/snap.avro"}},
+		FormatVersion:     1,
+		Location:          "s3://bucket/finance/transactions",
+		Snapshots:         []iceberg.Snapshot{{SnapshotID: 1, ManifestList: "s3://bucket/m/snap.avro"}},
 		CurrentSnapshotID: 1,
 	}
 	r, _ := Audit(context.Background(), "finance.transactions", md, "s3://bucket/m/v1.metadata.json", storage.NewResolver())
@@ -53,10 +53,10 @@ func TestAuditV1IsMedium(t *testing.T) {
 
 func TestAuditCleanS3IsLow(t *testing.T) {
 	md := &iceberg.TableMetadata{
-		FormatVersion: 2,
-		Location:      "s3://bucket/finance/transactions",
-		Properties:    map[string]string{"write.format.default": "parquet"},
-		Snapshots: []iceberg.Snapshot{{SnapshotID: 1, ManifestList: "s3://bucket/m/snap.avro"}},
+		FormatVersion:     2,
+		Location:          "s3://bucket/finance/transactions",
+		Properties:        map[string]string{"write.format.default": "parquet"},
+		Snapshots:         []iceberg.Snapshot{{SnapshotID: 1, ManifestList: "s3://bucket/m/snap.avro"}},
 		CurrentSnapshotID: 1,
 	}
 	r, _ := Audit(context.Background(), "finance.transactions", md, "s3://bucket/m/v1.metadata.json", storage.NewResolver())

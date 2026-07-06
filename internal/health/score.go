@@ -8,16 +8,16 @@ import (
 // Thresholds drive dimension scoring. Defaults match the values quoted in
 // the spec; a Policy can override them per-table.
 type Thresholds struct {
-	MinFileSizeBytes   int64
-	WarnFileSizeBytes  int64
-	WarnManifestCount  int64
-	CritManifestCount  int64
-	WarnSnapshotAge    time.Duration
-	CritSnapshotAge    time.Duration
-	WarnSnapshotCount  int
-	CritSnapshotCount  int
-	WarnDeleteRatio    float64
-	CritDeleteRatio    float64
+	MinFileSizeBytes  int64
+	WarnFileSizeBytes int64
+	WarnManifestCount int64
+	CritManifestCount int64
+	WarnSnapshotAge   time.Duration
+	CritSnapshotAge   time.Duration
+	WarnSnapshotCount int
+	CritSnapshotCount int
+	WarnDeleteRatio   float64
+	CritDeleteRatio   float64
 }
 
 // Defaults returns the spec-default thresholds.

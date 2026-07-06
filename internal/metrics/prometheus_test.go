@@ -10,14 +10,14 @@ import (
 
 func sampleReport() health.Report {
 	return health.Report{
-		TableID:       "finance.transactions",
-		Catalog:       "rest",
-		FormatVersion: 2,
-		SnapshotID:    100,
-		WritePattern:  "streaming",
-		Score:         78,
-		MaxScore:      90,
-		WorstSeverity: health.SeverityCritical,
+		TableID:        "finance.transactions",
+		Catalog:        "rest",
+		FormatVersion:  2,
+		SnapshotID:     100,
+		WritePattern:   "streaming",
+		Score:          78,
+		MaxScore:       90,
+		WorstSeverity:  health.SeverityCritical,
 		ScanDurationMS: 42,
 		WastageBytes:   2048,
 		Dimensions: []health.Dimension{

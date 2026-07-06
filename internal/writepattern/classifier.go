@@ -42,9 +42,9 @@ func Defaults() Thresholds {
 
 // Result is the classifier output.
 type Result struct {
-	Pattern              health.WritePattern
-	AvgCommitIntervalMs  int64
-	AvgFilesPerCommit    float64
+	Pattern             health.WritePattern
+	AvgCommitIntervalMs int64
+	AvgFilesPerCommit   float64
 }
 
 // Classify analyses the trailing window of snapshots.

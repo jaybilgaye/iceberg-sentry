@@ -13,7 +13,7 @@ func TestTimelineCumulativeAndTierCandidate(t *testing.T) {
 		Snapshots: []iceberg.Snapshot{
 			{SnapshotID: 1, TimestampMs: now.Add(-200 * 24 * time.Hour).UnixMilli(), Summary: map[string]string{"added-files-size": "1073741824"}}, // 1 GB
 			{SnapshotID: 2, TimestampMs: now.Add(-100 * 24 * time.Hour).UnixMilli(), Summary: map[string]string{"added-files-size": "2147483648"}}, // 2 GB
-			{SnapshotID: 3, TimestampMs: now.Add(-1 * 24 * time.Hour).UnixMilli(), Summary: map[string]string{"added-files-size": "536870912"}},     // 0.5 GB
+			{SnapshotID: 3, TimestampMs: now.Add(-1 * 24 * time.Hour).UnixMilli(), Summary: map[string]string{"added-files-size": "536870912"}},    // 0.5 GB
 		},
 	}
 	points := Timeline(md, Default(), 30)

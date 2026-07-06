@@ -21,19 +21,19 @@ const (
 // Field names mirror the Iceberg spec; only fields used by Phase 1 diagnostics
 // are typed.
 type ManifestFile struct {
-	Path             string
-	Length           int64
-	PartitionSpecID  int32
-	Content          ManifestContent
-	SequenceNumber   int64
-	MinSequenceNumber int64
-	AddedSnapshotID  int64
-	AddedFilesCount  int32
+	Path               string
+	Length             int64
+	PartitionSpecID    int32
+	Content            ManifestContent
+	SequenceNumber     int64
+	MinSequenceNumber  int64
+	AddedSnapshotID    int64
+	AddedFilesCount    int32
 	ExistingFilesCount int32
 	DeletedFilesCount  int32
-	AddedRowsCount   int64
-	ExistingRowsCount int64
-	DeletedRowsCount  int64
+	AddedRowsCount     int64
+	ExistingRowsCount  int64
+	DeletedRowsCount   int64
 }
 
 // FileContent identifies whether a manifest entry refers to a data file or a
@@ -42,9 +42,9 @@ type ManifestFile struct {
 type FileContent int
 
 const (
-	FileContentData              FileContent = 0
-	FileContentPositionDeletes   FileContent = 1
-	FileContentEqualityDeletes   FileContent = 2
+	FileContentData            FileContent = 0
+	FileContentPositionDeletes FileContent = 1
+	FileContentEqualityDeletes FileContent = 2
 )
 
 // DataFile is one entry from a manifest file. Phase 1 only consumes file
@@ -54,11 +54,11 @@ type DataFile struct {
 	SnapshotID  int64
 	SequenceNum int64
 
-	Content     FileContent
-	Path        string
-	Format      string
-	Partition   map[string]any
-	RecordCount int64
+	Content       FileContent
+	Path          string
+	Format        string
+	Partition     map[string]any
+	RecordCount   int64
 	FileSizeBytes int64
 }
 

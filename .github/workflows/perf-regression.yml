@@ -8,11 +8,16 @@ on:
       - 'go.mod'
       - 'go.sum'
 
+# Explicit permissions block: without contents:read here, actions/checkout
+# fails with "Repository not found" because unspecified permissions default
+# to `none` when any permission is set.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   bench:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,35 +28,59 @@ jobs:
         with:
           go-version: '1.24'
 
-      # Run current-branch benchmarks.
       - name: Bench current
         run: |
-          go test -run=^$ -bench=. -benchmem -count=5 ./internal/scan ./internal/iceberg ./internal/bloom \
+          go test -run=^$ -bench=. -benchmem -count=5 \
+              ./internal/scan ./internal/iceberg ./internal/bloom \
             | tee bench-current.txt
 
-      # Run baseline (target branch) benchmarks for comparison.
+      # Skip the comparison step if the base branch has no benchmark harness
+      # yet (typical for the initial release PR).
       - name: Bench baseline (target branch)
+        id: baseline
+        continue-on-error: true
         run: |
-          git checkout ${{ github.event.pull_request.base.sha }}
-          go test -run=^$ -bench=. -benchmem -count=5 ./internal/scan ./internal/iceberg ./internal/bloom \
+          set -e
+          base_sha="${{ github.event.pull_request.base.sha }}"
+          if ! git checkout "$base_sha" -- 2>/dev/null; then
+            git checkout "$base_sha" || {
+              echo "::warning::could not check out base $base_sha; skipping comparison"
+              echo "skip=1" >> "$GITHUB_OUTPUT"
+              exit 0
+            }
+          fi
+          if [ ! -d internal/scan ] || ! grep -R "^func Benchmark" internal/ >/dev/null 2>&1; then
+            echo "::warning::no benchmarks on base branch; skipping comparison"
+            echo "skip=1" >> "$GITHUB_OUTPUT"
+            git checkout -
+            exit 0
+          fi
+          go test -run=^$ -bench=. -benchmem -count=5 \
+              ./internal/scan ./internal/iceberg ./internal/bloom \
             | tee bench-baseline.txt
           git checkout -
 
-      # benchstat is the official analysis tool from x/perf.
       - name: Install benchstat
+        if: steps.baseline.outputs.skip != '1'
         run: go install golang.org/x/perf/cmd/benchstat@latest
 
       - name: Compare
+        if: steps.baseline.outputs.skip != '1'
         run: |
-          ~/go/bin/benchstat bench-baseline.txt bench-current.txt | tee bench-diff.txt
-          # Fail the job if the per-op time regresses by > 20% on any benchmark.
+          "$HOME/go/bin/benchstat" bench-baseline.txt bench-current.txt | tee bench-diff.txt
           if grep -E "\+[2-9][0-9]\.[0-9]+%" bench-diff.txt; then
             echo "::error::Performance regression > 20% detected"
             exit 1
           fi
 
-      - name: Post PR comment
-        if: github.event_name == 'pull_request'
+      - name: Publish current benchmarks as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-current
+          path: bench-current.txt
+
+      - name: Post PR comment (comparison available)
+        if: steps.baseline.outputs.skip != '1'
         uses: actions/github-script@v7
         with:
           script: |
@@ -62,4 +91,18 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number,
               body: `### Performance comparison\n${body}`,
+            });
+
+      - name: Post PR comment (baseline not available)
+        if: steps.baseline.outputs.skip == '1'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const body = '```\n' + fs.readFileSync('bench-current.txt', 'utf8') + '\n```';
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `### Benchmarks (no comparable baseline)\n${body}`,
             });

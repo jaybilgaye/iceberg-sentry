@@ -20,11 +20,11 @@ import (
 
 // baseline is the on-disk record persisted between bench start and bench compare.
 type baseline struct {
-	Table     string        `json:"table"`
-	Tag       string        `json:"tag"`
-	CapturedAt time.Time    `json:"captured_at"`
-	Stats     health.Stats  `json:"stats"`
-	Report    health.Report `json:"report"`
+	Table      string        `json:"table"`
+	Tag        string        `json:"tag"`
+	CapturedAt time.Time     `json:"captured_at"`
+	Stats      health.Stats  `json:"stats"`
+	Report     health.Report `json:"report"`
 }
 
 func newBenchCmd() *cobra.Command {

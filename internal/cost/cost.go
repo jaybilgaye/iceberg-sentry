@@ -26,12 +26,14 @@ type Provider interface {
 }
 
 // Default returns a list-price-based provider for AWS S3 Standard.
-func Default() Provider { return &staticProvider{name: "s3-standard", rates: map[string]float64{
-	"standard": 0.023,
-	"infrequent-access": 0.0125,
-	"glacier-instant":   0.004,
-	"glacier-deep":      0.00099,
-}}}
+func Default() Provider {
+	return &staticProvider{name: "s3-standard", rates: map[string]float64{
+		"standard":          0.023,
+		"infrequent-access": 0.0125,
+		"glacier-instant":   0.004,
+		"glacier-deep":      0.00099,
+	}}
+}
 
 // CustomRate returns a provider with the supplied $/GB/month standard-class rate.
 func CustomRate(name string, standardRate float64) Provider {
@@ -53,13 +55,13 @@ func (p *staticProvider) Rate(class string) float64 {
 
 // SnapshotPoint is one point on the Snapshot Cost Timeline.
 type SnapshotPoint struct {
-	SnapshotID   int64     `json:"snapshot_id"`
-	Timestamp    time.Time `json:"timestamp"`
-	AddedBytes   int64     `json:"added_bytes"`
-	RemovedBytes int64     `json:"removed_bytes"`
-	CumulativeGB float64   `json:"cumulative_gb"`
-	MonthlyUSD   float64   `json:"monthly_usd"`
-	TierCandidate bool     `json:"tier_candidate,omitempty"`
+	SnapshotID    int64     `json:"snapshot_id"`
+	Timestamp     time.Time `json:"timestamp"`
+	AddedBytes    int64     `json:"added_bytes"`
+	RemovedBytes  int64     `json:"removed_bytes"`
+	CumulativeGB  float64   `json:"cumulative_gb"`
+	MonthlyUSD    float64   `json:"monthly_usd"`
+	TierCandidate bool      `json:"tier_candidate,omitempty"`
 }
 
 // Timeline produces the cost trajectory for a table. Bytes are derived from

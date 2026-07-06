@@ -2,19 +2,19 @@
 // storage which are not referenced by any valid Iceberg snapshot. The
 // algorithm follows spec §2.5:
 //
-//   1. Lock the scan to a specific Iceberg snapshot ID at start.
-//   2. Walk every snapshot in the metadata, every manifest list, and every
-//      manifest file. Insert each referenced file path into a Bloom filter
-//      ("possibly active") and into an exact set ("definitely active").
-//      The exact set is what's used for the orphan decision; the Bloom
-//      filter is a fast pre-filter that lets us skip the per-object cost
-//      on the storage crawl side when memory pressure spikes.
-//   3. Stream the table's data directory from storage. For each listed
-//      object: if the path is NOT in the exact set AND the object's age
-//      exceeds the grace period, the path is an orphan candidate.
-//   4. Return a manifest of candidates with total reclaimable bytes. We
-//      never delete — destruction is a separate operator step requiring
-//      --confirm (Phase 3).
+//  1. Lock the scan to a specific Iceberg snapshot ID at start.
+//  2. Walk every snapshot in the metadata, every manifest list, and every
+//     manifest file. Insert each referenced file path into a Bloom filter
+//     ("possibly active") and into an exact set ("definitely active").
+//     The exact set is what's used for the orphan decision; the Bloom
+//     filter is a fast pre-filter that lets us skip the per-object cost
+//     on the storage crawl side when memory pressure spikes.
+//  3. Stream the table's data directory from storage. For each listed
+//     object: if the path is NOT in the exact set AND the object's age
+//     exceeds the grace period, the path is an orphan candidate.
+//  4. Return a manifest of candidates with total reclaimable bytes. We
+//     never delete — destruction is a separate operator step requiring
+//     --confirm (Phase 3).
 package orphans
 
 import (

@@ -144,9 +144,10 @@ func (c *thriftClient) readMessageBegin(ctx context.Context, expectedName string
 
 // readGetTableResult parses get_table_result, returning the parameters map.
 // get_table_result struct:
-//   0: Table success
-//   1: MetaException o1
-//   2: NoSuchObjectException o2
+//
+//	0: Table success
+//	1: MetaException o1
+//	2: NoSuchObjectException o2
 //
 // Table.parameters is field id 12 (`map<string,string>`).
 func (c *thriftClient) readGetTableResult(ctx context.Context) (map[string]string, error) {
@@ -266,8 +267,9 @@ func readStringMap(ctx context.Context, p thrift.TProtocol) (map[string]string, 
 // readGetAllTablesResult parses a list<string> success result.
 //
 // get_all_tables_result struct:
-//   0: list<string> success
-//   1: MetaException o1
+//
+//	0: list<string> success
+//	1: MetaException o1
 func (c *thriftClient) readGetAllTablesResult(ctx context.Context) ([]string, error) {
 	if err := c.readMessageBegin(ctx, "get_all_tables"); err != nil {
 		return nil, err

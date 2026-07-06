@@ -14,13 +14,13 @@ import (
 type Type string
 
 const (
-	TypeEmail       Type = "EMAIL"
-	TypeSSN         Type = "SSN_US"
-	TypeCreditCard  Type = "CREDIT_CARD"
-	TypePhoneE164   Type = "PHONE_E164"
-	TypeAUTFN       Type = "AU_TFN"
-	TypeINAadhaar   Type = "IN_AADHAAR"
-	TypeAPIKey      Type = "API_KEY_ENTROPY"
+	TypeEmail      Type = "EMAIL"
+	TypeSSN        Type = "SSN_US"
+	TypeCreditCard Type = "CREDIT_CARD"
+	TypePhoneE164  Type = "PHONE_E164"
+	TypeAUTFN      Type = "AU_TFN"
+	TypeINAadhaar  Type = "IN_AADHAAR"
+	TypeAPIKey     Type = "API_KEY_ENTROPY"
 )
 
 type pattern struct {
@@ -168,13 +168,13 @@ func shannonEntropy(s string) float64 {
 
 // Finding aggregates per-column results across a sampled row-group set.
 type Finding struct {
-	Table         string  `json:"table"`
-	Column        string  `json:"column"`
-	PIIType       Type    `json:"pii_type"`
-	SampleCount   int     `json:"sample_count"`
-	MatchCount    int     `json:"match_count"`
-	Confidence    float64 `json:"confidence"`
-	RecommendTag  string  `json:"recommended_tag"`
+	Table        string  `json:"table"`
+	Column       string  `json:"column"`
+	PIIType      Type    `json:"pii_type"`
+	SampleCount  int     `json:"sample_count"`
+	MatchCount   int     `json:"match_count"`
+	Confidence   float64 `json:"confidence"`
+	RecommendTag string  `json:"recommended_tag"`
 }
 
 // Aggregator collects per-(column,type) tallies and turns them into Findings.

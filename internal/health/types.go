@@ -89,10 +89,10 @@ type Stats struct {
 	FormatVersion int
 	SnapshotID    int64
 
-	DataFileCount        int64
-	DataFileTotalBytes   int64
-	DataFileSizes        []int64 // sampled or full; keep small to bound memory
-	SmallFileCountUnder64 int64
+	DataFileCount          int64
+	DataFileTotalBytes     int64
+	DataFileSizes          []int64 // sampled or full; keep small to bound memory
+	SmallFileCountUnder64  int64
 	SmallFileCountUnder128 int64
 
 	PositionDeleteFiles  int64
@@ -111,9 +111,9 @@ type Stats struct {
 	Partitions []PartitionStats
 
 	// Write-pattern classifier outputs.
-	WritePattern         WritePattern
-	AvgCommitIntervalMs  int64
-	AvgFilesPerCommit    float64
+	WritePattern        WritePattern
+	AvgCommitIntervalMs int64
+	AvgFilesPerCommit   float64
 }
 
 // HasDataFiles is a convenience accessor used by several dimensions.

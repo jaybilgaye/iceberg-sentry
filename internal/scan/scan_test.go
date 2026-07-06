@@ -123,19 +123,19 @@ func buildTableFixture(t testing.TB, dataFiles, deleteFiles int, dataFileSize in
 
 	manifestListPath := filepath.Join(mdDir, "snap-100.avro")
 	writeAvro(t, manifestListPath, manifestListSchema, []map[string]any{{
-		"manifest_path":         "file://" + manifestPath,
-		"manifest_length":       int64(2048),
-		"partition_spec_id":     int32(0),
-		"content":               int32(0),
-		"sequence_number":       int64(1),
-		"min_sequence_number":   int64(1),
-		"added_snapshot_id":     int64(100),
-		"added_files_count":     int32(int32(dataFiles + deleteFiles)),
-		"existing_files_count":  int32(0),
-		"deleted_files_count":   int32(0),
-		"added_rows_count":      int64(int64(dataFiles * 100)),
-		"existing_rows_count":   int64(0),
-		"deleted_rows_count":    int64(0),
+		"manifest_path":        "file://" + manifestPath,
+		"manifest_length":      int64(2048),
+		"partition_spec_id":    int32(0),
+		"content":              int32(0),
+		"sequence_number":      int64(1),
+		"min_sequence_number":  int64(1),
+		"added_snapshot_id":    int64(100),
+		"added_files_count":    int32(int32(dataFiles + deleteFiles)),
+		"existing_files_count": int32(0),
+		"deleted_files_count":  int32(0),
+		"added_rows_count":     int64(int64(dataFiles * 100)),
+		"existing_rows_count":  int64(0),
+		"deleted_rows_count":   int64(0),
 	}})
 
 	mdJSON := fmt.Sprintf(`{

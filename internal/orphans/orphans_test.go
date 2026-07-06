@@ -117,19 +117,19 @@ func buildOrphanFixture(t *testing.T) (metadataURI, dataDir, orphanPath string) 
 	listPath := filepath.Join(mdDir, "snap-100.avro")
 	writeAvro(t, listPath, manifestListSchema, []map[string]any{
 		{
-			"manifest_path":         manifestPath,
-			"manifest_length":       int64(1024),
-			"partition_spec_id":     int32(0),
-			"content":               int32(0),
-			"sequence_number":       int64(1),
-			"min_sequence_number":   int64(1),
-			"added_snapshot_id":     int64(100),
-			"added_files_count":     int32(2),
-			"existing_files_count":  int32(0),
-			"deleted_files_count":   int32(0),
-			"added_rows_count":      int64(2),
-			"existing_rows_count":   int64(0),
-			"deleted_rows_count":    int64(0),
+			"manifest_path":        manifestPath,
+			"manifest_length":      int64(1024),
+			"partition_spec_id":    int32(0),
+			"content":              int32(0),
+			"sequence_number":      int64(1),
+			"min_sequence_number":  int64(1),
+			"added_snapshot_id":    int64(100),
+			"added_files_count":    int32(2),
+			"existing_files_count": int32(0),
+			"deleted_files_count":  int32(0),
+			"added_rows_count":     int64(2),
+			"existing_rows_count":  int64(0),
+			"deleted_rows_count":   int64(0),
 		},
 	})
 

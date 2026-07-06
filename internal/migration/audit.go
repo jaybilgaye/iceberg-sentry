@@ -35,9 +35,9 @@ const (
 
 // Finding is one Migration Readiness flag for a table.
 type Finding struct {
-	Code       string `json:"code"`
-	Severity   string `json:"severity"`
-	Message    string `json:"message"`
+	Code        string `json:"code"`
+	Severity    string `json:"severity"`
+	Message     string `json:"message"`
 	Remediation string `json:"remediation,omitempty"`
 }
 

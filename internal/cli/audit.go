@@ -26,29 +26,29 @@ import (
 )
 
 type auditFlags struct {
-	catalogKind string
-	catalogRoot string
-	hiveAddr    string
-	hivePrincipal string
-	hiveKeytab  string
-	restURL     string
-	restToken   string
+	catalogKind      string
+	catalogRoot      string
+	hiveAddr         string
+	hivePrincipal    string
+	hiveKeytab       string
+	restURL          string
+	restToken        string
 	restClientID     string
 	restClientSecret string
-	restTokenURL string
-	glueCatalog string
-	hdfsURL     string
-	tableID     string
-	namespace   string
-	branch      string
-	policyPath  string
-	format      string
-	failOn      string
-	pushGateway string
-	pushJob     string
-	pushInstance string
-	atlasOutput string
-	pathStyle   bool
+	restTokenURL     string
+	glueCatalog      string
+	hdfsURL          string
+	tableID          string
+	namespace        string
+	branch           string
+	policyPath       string
+	format           string
+	failOn           string
+	pushGateway      string
+	pushJob          string
+	pushInstance     string
+	atlasOutput      string
+	pathStyle        bool
 }
 
 func newAuditCmd() *cobra.Command {

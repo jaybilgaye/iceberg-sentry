@@ -20,8 +20,8 @@ type sarifLog struct {
 }
 
 type sarifRun struct {
-	Tool    sarifTool      `json:"tool"`
-	Results []sarifResult  `json:"results"`
+	Tool        sarifTool         `json:"tool"`
+	Results     []sarifResult     `json:"results"`
 	Invocations []sarifInvocation `json:"invocations,omitempty"`
 }
 
@@ -37,11 +37,11 @@ type sarifDriver struct {
 }
 
 type sarifRule struct {
-	ID               string            `json:"id"`
-	Name             string            `json:"name"`
-	ShortDescription sarifText         `json:"shortDescription"`
-	HelpURI          string            `json:"helpUri,omitempty"`
-	DefaultConfig    sarifConfig       `json:"defaultConfiguration"`
+	ID               string      `json:"id"`
+	Name             string      `json:"name"`
+	ShortDescription sarifText   `json:"shortDescription"`
+	HelpURI          string      `json:"helpUri,omitempty"`
+	DefaultConfig    sarifConfig `json:"defaultConfiguration"`
 }
 
 type sarifText struct {

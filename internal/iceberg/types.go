@@ -59,7 +59,7 @@ type SchemaField struct {
 }
 
 type PartitionSpec struct {
-	SpecID int             `json:"spec-id"`
+	SpecID int              `json:"spec-id"`
 	Fields []PartitionField `json:"fields"`
 }
 
@@ -72,15 +72,15 @@ type PartitionField struct {
 
 // Snapshot describes one committed point in the table's history.
 type Snapshot struct {
-	SnapshotID       int64             `json:"snapshot-id"`
-	ParentSnapshotID *int64            `json:"parent-snapshot-id,omitempty"`
-	SequenceNumber   int64             `json:"sequence-number"`
-	TimestampMs      int64              `json:"timestamp-ms"`
-	ManifestList     string            `json:"manifest-list"`
+	SnapshotID       int64  `json:"snapshot-id"`
+	ParentSnapshotID *int64 `json:"parent-snapshot-id,omitempty"`
+	SequenceNumber   int64  `json:"sequence-number"`
+	TimestampMs      int64  `json:"timestamp-ms"`
+	ManifestList     string `json:"manifest-list"`
 	// Older v1 metadata may inline manifests instead of using a manifest-list.
-	Manifests       []string          `json:"manifests,omitempty"`
-	Summary         map[string]string `json:"summary,omitempty"`
-	SchemaID        *int              `json:"schema-id,omitempty"`
+	Manifests []string          `json:"manifests,omitempty"`
+	Summary   map[string]string `json:"summary,omitempty"`
+	SchemaID  *int              `json:"schema-id,omitempty"`
 }
 
 type SnapshotLogEntry struct {
@@ -94,24 +94,24 @@ type MetadataLogEntry struct {
 }
 
 type SortOrder struct {
-	OrderID int             `json:"order-id"`
+	OrderID int              `json:"order-id"`
 	Fields  []SortOrderField `json:"fields"`
 }
 
 type SortOrderField struct {
-	Transform  string `json:"transform"`
-	SourceID   int    `json:"source-id"`
-	Direction  string `json:"direction"`
-	NullOrder  string `json:"null-order"`
+	Transform string `json:"transform"`
+	SourceID  int    `json:"source-id"`
+	Direction string `json:"direction"`
+	NullOrder string `json:"null-order"`
 }
 
 // SnapshotRef is an Iceberg branch or tag reference.
 type SnapshotRef struct {
-	SnapshotID         int64   `json:"snapshot-id"`
-	Type               string  `json:"type"` // "branch" or "tag"
-	MinSnapshotsToKeep *int    `json:"min-snapshots-to-keep,omitempty"`
-	MaxSnapshotAgeMs   *int64  `json:"max-snapshot-age-ms,omitempty"`
-	MaxRefAgeMs        *int64  `json:"max-ref-age-ms,omitempty"`
+	SnapshotID         int64  `json:"snapshot-id"`
+	Type               string `json:"type"` // "branch" or "tag"
+	MinSnapshotsToKeep *int   `json:"min-snapshots-to-keep,omitempty"`
+	MaxSnapshotAgeMs   *int64 `json:"max-snapshot-age-ms,omitempty"`
+	MaxRefAgeMs        *int64 `json:"max-ref-age-ms,omitempty"`
 }
 
 type StatisticsFile struct {
