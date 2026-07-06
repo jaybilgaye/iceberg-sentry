@@ -81,7 +81,7 @@ jobs:
 
       - name: Post PR comment (comparison available)
         if: steps.baseline.outputs.skip != '1'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
@@ -95,7 +95,7 @@ jobs:
 
       - name: Post PR comment (baseline not available)
         if: steps.baseline.outputs.skip == '1'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const fs = require('fs');
