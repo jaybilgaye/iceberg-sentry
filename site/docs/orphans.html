@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>orphans — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+<meta name="description" content="Find files in storage that no valid Iceberg snapshot references. Bloom-filter-tracked, dry-run by default, grace-period safety." />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="canonical" href="https://icebergsentry.io/docs/orphans.html" />
+<link rel="icon" type="image/svg+xml" href="../assets/img/favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="orphans — Iceberg Sentry" />
+<meta property="og:description" content="Find files in storage that no valid Iceberg snapshot references. Bloom-filter-tracked, dry-run by default, grace-period safety." />
+<meta property="og:image" content="https://icebergsentry.io/assets/img/og.svg" />
+<meta property="og:url" content="https://icebergsentry.io/docs/orphans.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="orphans — Iceberg Sentry" />
+<meta name="twitter:description" content="Find files in storage that no valid Iceberg snapshot references. Bloom-filter-tracked, dry-run by default, grace-period safety." />
+<meta name="twitter:image" content="https://icebergsentry.io/assets/img/og.svg" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>orphans</h1>
+    <p class="muted">Find files in storage that no valid Iceberg snapshot references. Dry-run by default. Safety controls built in.</p>
+
+    <div class="callout warn">
+      <strong>// safety guarantee</strong>
+      Iceberg Sentry <em>never</em> deletes files. The <code>--confirm</code> flag is reserved for a future destructive mode; the current implementation always emits a recommendation manifest.
+    </div>
+
+    <h2 id="how">How it works</h2>
+    <ol>
+      <li>Lock the scan to a specific Iceberg snapshot.</li>
+      <li>Walk every snapshot in metadata. For each snapshot, fetch the manifest list and every manifest file. Insert every referenced file URI into an exact set and a Bloom filter.</li>
+      <li>Stream object listings from storage under the table's data prefix.</li>
+      <li>Any object that isn't in the exact set <em>and</em> whose mtime is older than the grace period is an orphan candidate.</li>
+    </ol>
+
+    <h2 id="examples">Examples</h2>
+
+    <h3>Dry-run with default 24h grace</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry orphans \
+    --catalog rest --rest http://catalog:8181 \
+    --table finance.transactions</pre>
+
+    <h3>Aggressive 6h grace, JSON output for a deletion pipeline</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry orphans \
+    --catalog glue --table finance.transactions \
+    --grace-period 6h --format json > orphans.json</pre>
+
+    <h3>Crawl a non-default data prefix</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry orphans \
+    --catalog rest --rest http://catalog:8181 \
+    --table finance.transactions \
+    --data-prefix s3://datalake/finance/transactions/data</pre>
+
+    <h2 id="flags">Flags</h2>
+    <table class="flags">
+      <thead><tr><th>Flag</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>--table</td><td>string</td><td><em>required</em></td><td>Fully qualified table id.</td></tr>
+        <tr><td>--data-prefix</td><td>string</td><td>&lt;table&gt;/data</td><td>Storage prefix to crawl.</td></tr>
+        <tr><td>--grace-period</td><td>duration</td><td>24h</td><td>Skip files newer than this. <code>6h</code>, <code>30m</code>, etc.</td></tr>
+        <tr><td>--format</td><td>string</td><td>text</td><td><code>text</code> · <code>json</code></td></tr>
+        <tr><td>--preview</td><td>int</td><td>25</td><td>Max candidates to list inline (0 = all).</td></tr>
+        <tr><td>--confirm</td><td>bool</td><td>false</td><td>Reserved for future destructive mode (no-op today).</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted">Catalog and storage flags (<code>--catalog</code>, <code>--rest</code>, <code>--hive</code>, <code>--hdfs</code>, <code>--s3-path-style</code>) are identical to <a href="./audit.html#flags">audit</a>.</p>
+
+    <h2 id="output">Output</h2>
+    <div class="terminal">
+      <div class="term-head"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>~ orphans</span></div>
+<pre>  [DRY RUN] Orphan File Report: finance.transactions
+  ─────────────────────────────────────────────────────────────────
+  Scanned prefix:  s3://datalake/finance/transactions/data
+  Snapshot:        2026-04-24T09:14:22Z (locked)
+  Grace period:    24h
+  Active files:    4,217
+  Scanned objects: 5,064
+
+  Found 847 orphan candidate(s)  │  Reclaimable: 12.4 GB
+
+  Preview (first 5):
+    s3://datalake/finance/transactions/data/00123.parquet  (2.1 MB)
+    s3://datalake/finance/transactions/data/00124.parquet  (1.8 MB)
+    ...</pre>
+    </div>
+
+    <h2 id="json-output">JSON output</h2>
+<pre>{
+  "snapshot_id": 602432555078556252,
+  "scanned_at": "2026-04-24T09:14:22Z",
+  "grace_period": "24h0m0s",
+  "scanned_objects": 5064,
+  "active_files": 4217,
+  "candidates": [
+    {"uri": "s3://datalake/finance/transactions/data/00123.parquet", "size_bytes": 2199023, "age_ms": 1555200000}
+  ],
+  "total_bytes": 13315373465
+}</pre>
+
+    <h2 id="memory">Memory footprint</h2>
+    <p>The active-file exact set is held in memory; a 1M-file table uses approximately 250 MB for the set. Disk-backed swap (bbolt) is on the Phase 4 roadmap for tables &gt; 10M files.</p>
+
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

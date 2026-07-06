@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>CI Integration — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+<meta name="description" content="Wire iceberg-sentry into GitHub Actions, GitLab CI, or pre-commit with SARIF and stable exit codes." />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="canonical" href="https://icebergsentry.io/docs/ci-integration.html" />
+<link rel="icon" type="image/svg+xml" href="../assets/img/favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="CI Integration — Iceberg Sentry" />
+<meta property="og:description" content="Wire iceberg-sentry into GitHub Actions, GitLab CI, or pre-commit with SARIF and stable exit codes." />
+<meta property="og:image" content="https://icebergsentry.io/assets/img/og.svg" />
+<meta property="og:url" content="https://icebergsentry.io/docs/ci-integration.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="CI Integration — Iceberg Sentry" />
+<meta name="twitter:description" content="Wire iceberg-sentry into GitHub Actions, GitLab CI, or pre-commit with SARIF and stable exit codes." />
+<meta name="twitter:image" content="https://icebergsentry.io/assets/img/og.svg" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>CI Integration</h1>
+    <p class="muted">Iceberg Sentry is built shift-left: structured output, deterministic exit codes, SARIF for native GitHub integration. Wire it into any CI.</p>
+
+    <h2 id="github-actions">GitHub Actions</h2>
+
+    <h3>SARIF upload to Code Scanning</h3>
+<pre>name: Iceberg health
+on: [push, pull_request, schedule]
+permissions:
+  contents: read
+  security-events: write
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Sentry
+        run: curl -sSL https://get.icebergsentry.io/install.sh | bash
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.ICEBERG_AUDIT_ROLE }}
+          aws-region: us-east-1
+
+      - name: Run audit
+        run: |
+          iceberg-sentry audit \
+            --catalog glue --namespace finance \
+            --policy sentry.yaml \
+            --format sarif > iceberg.sarif
+
+      - uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: iceberg.sarif
+          category: iceberg-health</pre>
+
+    <p>Results appear in <strong>Security → Code scanning alerts</strong> grouped by dimension.</p>
+
+    <h3>Pull-request comment</h3>
+<pre>- name: Comment on PR
+  if: github.event_name == 'pull_request'
+  run: |
+    iceberg-sentry audit \
+      --catalog glue --namespace finance \
+      --format json > report.json
+    jq -r '"## Iceberg Health\n- Table: `\(.table)`\n- Score: \(.score)/\(.max_score) (\(.worst_severity))"' \
+      report.json | gh pr comment ${{ github.event.number }} --body-file -
+  env:
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}</pre>
+
+    <h3>Bench-driven PR comment for compactions</h3>
+<pre>- name: Capture baseline
+  run: iceberg-sentry bench start --table finance.transactions --tag pr-${{ github.event.number }}
+
+- run: ./scripts/run-spark-compaction.sh
+
+- name: Diff and comment
+  run: |
+    iceberg-sentry bench compare --table finance.transactions \
+        --tag pr-${{ github.event.number }} \
+      | gh pr comment ${{ github.event.number }} --body-file -</pre>
+
+    <h2 id="gitlab">GitLab CI</h2>
+<pre>iceberg-audit:
+  image: ghcr.io/jaybilgaye/iceberg-sentry:latest
+  stage: test
+  script:
+    - iceberg-sentry audit
+        --catalog rest --rest $REST_URL
+        --namespace finance
+        --policy sentry.yaml
+        --format sarif > iceberg.sarif
+  artifacts:
+    reports:
+      sast: iceberg.sarif
+    when: always</pre>
+
+    <h2 id="precommit">Pre-commit hook</h2>
+<pre># .pre-commit-config.yaml
+repos:
+  - repo: local
+    hooks:
+      - id: iceberg-sentry
+        name: Iceberg Table Health Check
+        entry: iceberg-sentry audit --policy sentry.yaml --namespace staging --fail-on warn
+        language: system
+        pass_filenames: false</pre>
+
+    <h2 id="exit-codes">Exit code reference</h2>
+    <table class="flags exit-code-table">
+      <tbody>
+        <tr><td>0</td><td>OK — pass</td></tr>
+        <tr><td>1</td><td>WARNING surfaced (only with <code>--fail-on warn</code>)</td></tr>
+        <tr><td>2</td><td>CRITICAL — hard fail</td></tr>
+        <tr><td>3</td><td>Untagged PII detected (<code>pii</code> command)</td></tr>
+        <tr><td>4</td><td>Tool / config error</td></tr>
+        <tr><td>5</td><td>Catalog / storage connection failure</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="output-formats">Output formats</h2>
+    <table class="flags">
+      <tbody>
+        <tr><td>text</td><td>Default. Colour-aware terminal output.</td></tr>
+        <tr><td>json</td><td>One JSON object per table. Pipe through <code>jq</code>.</td></tr>
+        <tr><td>sarif</td><td>SARIF 2.1.0 for GitHub / GitLab Code Scanning ingest.</td></tr>
+        <tr><td>prometheus</td><td>Exposition format for push gateway / scraping.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="perf-regression">Perf regression gate</h2>
+    <p>The repo ships <code>.github/workflows/perf-regression.yml</code> which runs Go benchmarks for the scan path, compares to the target branch with <code>benchstat</code>, fails the PR on &gt; 20% regression, and posts the diff as a PR comment.</p>
+
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

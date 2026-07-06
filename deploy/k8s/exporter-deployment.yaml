@@ -1,0 +1,78 @@
+# Long-lived Prometheus exporter for Iceberg Sentry health metrics.
+# Pair with the ServiceMonitor below if you use kube-prometheus-stack.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: iceberg-sentry-exporter
+  namespace: data-platform
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: iceberg-sentry
+      app.kubernetes.io/component: exporter
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: iceberg-sentry
+        app.kubernetes.io/component: exporter
+    spec:
+      serviceAccountName: iceberg-sentry
+      containers:
+        - name: sentry
+          image: ghcr.io/jaybilgaye/iceberg-sentry:latest
+          args:
+            - export
+            - --catalog=glue
+            - --namespace=finance
+            - --listen=:9400
+            - --interval=5m
+          ports:
+            - name: metrics
+              containerPort: 9400
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 9400
+            initialDelaySeconds: 15
+            periodSeconds: 30
+          envFrom:
+            - secretRef:
+                name: iceberg-sentry-aws
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: iceberg-sentry-exporter
+  namespace: data-platform
+  labels:
+    app.kubernetes.io/name: iceberg-sentry
+spec:
+  selector:
+    app.kubernetes.io/name: iceberg-sentry
+    app.kubernetes.io/component: exporter
+  ports:
+    - name: metrics
+      port: 9400
+      targetPort: metrics
+---
+# Prometheus Operator ServiceMonitor (kube-prometheus-stack).
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: iceberg-sentry
+  namespace: data-platform
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: iceberg-sentry
+  endpoints:
+    - port: metrics
+      interval: 60s

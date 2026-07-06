@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Deployment — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+<meta name="description" content="Kubernetes CronJob and long-lived Prometheus exporter manifests; Helm chart; Grafana dashboard." />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="canonical" href="https://icebergsentry.io/docs/deployment.html" />
+<link rel="icon" type="image/svg+xml" href="../assets/img/favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Deployment — Iceberg Sentry" />
+<meta property="og:description" content="Kubernetes CronJob and long-lived Prometheus exporter manifests; Helm chart; Grafana dashboard." />
+<meta property="og:image" content="https://icebergsentry.io/assets/img/og.svg" />
+<meta property="og:url" content="https://icebergsentry.io/docs/deployment.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Deployment — Iceberg Sentry" />
+<meta name="twitter:description" content="Kubernetes CronJob and long-lived Prometheus exporter manifests; Helm chart; Grafana dashboard." />
+<meta name="twitter:image" content="https://icebergsentry.io/assets/img/og.svg" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>Deployment</h1>
+    <p class="muted">Kubernetes CronJob, long-lived Prometheus exporter, Helm chart, Grafana dashboard. Everything you need to run Sentry in production.</p>
+
+    <h2 id="cronjob">Periodic CronJob</h2>
+    <p>Push-gateway delivery. Use this when you want fire-and-forget scans on a schedule.</p>
+<pre>apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: iceberg-sentry-daily-audit
+  namespace: data-platform
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: sentry
+              image: ghcr.io/jaybilgaye/iceberg-sentry:latest
+              args:
+                - audit
+                - --catalog=glue
+                - --namespace=finance
+                - --policy=/config/sentry.yaml
+                - --format=prometheus
+                - --push-gateway=http://prometheus-pushgateway:9091
+              envFrom:
+                - secretRef: { name: iceberg-sentry-aws }
+              volumeMounts:
+                - { name: policy, mountPath: /config, readOnly: true }
+              securityContext:
+                runAsNonRoot: true
+                readOnlyRootFilesystem: true
+                allowPrivilegeEscalation: false
+                capabilities: { drop: ["ALL"] }
+          volumes:
+            - name: policy
+              configMap: { name: iceberg-sentry-policy }</pre>
+
+    <h2 id="exporter">Long-lived exporter</h2>
+    <p>Scraped by Prometheus / kube-prometheus-stack ServiceMonitor.</p>
+<pre>apiVersion: apps/v1
+kind: Deployment
+metadata: { name: iceberg-sentry-exporter, namespace: data-platform }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app.kubernetes.io/name: iceberg-sentry } }
+  template:
+    metadata: { labels: { app.kubernetes.io/name: iceberg-sentry } }
+    spec:
+      containers:
+        - name: sentry
+          image: ghcr.io/jaybilgaye/iceberg-sentry:latest
+          args: [ export, --catalog=glue, --namespace=finance, --listen=:9400, --interval=5m ]
+          ports: [{ name: metrics, containerPort: 9400 }]
+          readinessProbe:
+            httpGet: { path: /healthz, port: 9400 }
+          envFrom:
+            - secretRef: { name: iceberg-sentry-aws }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: iceberg-sentry-exporter, namespace: data-platform }
+spec:
+  selector: { app.kubernetes.io/name: iceberg-sentry }
+  ports: [{ name: metrics, port: 9400, targetPort: metrics }]
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata: { name: iceberg-sentry, namespace: data-platform }
+spec:
+  selector: { matchLabels: { app.kubernetes.io/name: iceberg-sentry } }
+  endpoints: [{ port: metrics, interval: 60s }]</pre>
+
+    <h2 id="helm">Helm chart</h2>
+    <p>The repo ships <code>deploy/helm/</code> with the chart. CronJob and exporter are independently toggleable.</p>
+
+<pre><span style="color:var(--accent)">$</span> helm install sentry deploy/helm \
+    --set cronjob.enabled=true \
+    --set exporter.enabled=true \
+    --set serviceMonitor.enabled=true \
+    --set image.tag=latest</pre>
+
+    <h3>values.yaml reference</h3>
+    <table class="flags">
+      <thead><tr><th>Key</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>image.repository</td><td>ghcr.io/jaybilgaye/iceberg-sentry</td><td></td></tr>
+        <tr><td>image.tag</td><td>latest</td><td></td></tr>
+        <tr><td>cronjob.enabled</td><td>true</td><td>Provision the CronJob.</td></tr>
+        <tr><td>cronjob.schedule</td><td>0 2 * * *</td><td>Cron string.</td></tr>
+        <tr><td>cronjob.args</td><td>[audit, --catalog=glue, ...]</td><td>Command to run.</td></tr>
+        <tr><td>cronjob.envSecretName</td><td>iceberg-sentry-aws</td><td>Pulled into the pod via envFrom.</td></tr>
+        <tr><td>exporter.enabled</td><td>false</td><td>Provision the long-lived /metrics Deployment.</td></tr>
+        <tr><td>exporter.listen</td><td>:9400</td><td></td></tr>
+        <tr><td>exporter.interval</td><td>5m</td><td>Background re-scan cadence.</td></tr>
+        <tr><td>policy.inline</td><td>(inline yaml)</td><td>Materialised as a ConfigMap and mounted at /config/sentry.yaml.</td></tr>
+        <tr><td>serviceAccount.create</td><td>true</td><td></td></tr>
+        <tr><td>serviceMonitor.enabled</td><td>false</td><td>Provision a Prometheus Operator ServiceMonitor.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="grafana">Grafana dashboard</h2>
+<pre><span style="color:var(--accent)">$</span> # Import deploy/grafana-dashboard.json directly into Grafana.
+<span style="color:var(--accent)">$</span> curl -X POST -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $GRAFANA_API_TOKEN" \
+    -d @deploy/grafana-dashboard.json \
+    https://grafana.example.com/api/dashboards/db</pre>
+
+    <h2 id="credentials">Credentials</h2>
+    <table class="flags">
+      <thead><tr><th>Catalog</th><th>Provision via</th></tr></thead>
+      <tbody>
+        <tr><td>Glue / S3</td><td>IAM role for ServiceAccount (IRSA) or static keys in a Secret.</td></tr>
+        <tr><td>Hive (Kerberos)</td><td>Keytab in a Secret, mounted read-only at <code>/etc/iceberg-sentry/sentry.keytab</code>.</td></tr>
+        <tr><td>REST (OAuth2)</td><td>Client secret in a Secret; reference via env (<code>SENTRY_REST_OAUTH_SECRET</code>).</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="security">Pod security defaults</h2>
+    <p>The shipped manifests harden:</p>
+    <ul>
+      <li><code>runAsNonRoot: true</code>, UID 65534</li>
+      <li><code>readOnlyRootFilesystem: true</code></li>
+      <li><code>allowPrivilegeEscalation: false</code></li>
+      <li><code>capabilities.drop: ["ALL"]</code></li>
+    </ul>
+
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

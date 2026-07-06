@@ -1,0 +1,40 @@
+run:
+  timeout: 5m
+  go: "1.23"
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - gofmt
+    - goimports
+    - govet
+    - ineffassign
+    - misspell
+    - revive
+    - staticcheck
+    - unconvert
+    - unused
+
+linters-settings:
+  gofmt:
+    simplify: true
+  goimports:
+    local-prefixes: github.com/jaybilgaye/iceberg-sentry
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+      - name: unexported-return
+        disabled: true
+
+issues:
+  exclude-dirs:
+    - testdata
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck
+    - path: internal/catalog/hive/kerberos\.go
+      linters:
+        - unused  # SASL frame integration is a documented Phase 4 hook

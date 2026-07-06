@@ -1,0 +1,70 @@
+name: Bug report
+description: Report a problem with iceberg-sentry
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please give us enough context to reproduce it.
+
+  - type: input
+    id: version
+    attributes:
+      label: iceberg-sentry version
+      description: Output of `iceberg-sentry version`.
+      placeholder: iceberg-sentry 0.3.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: catalog
+    attributes:
+      label: Catalog
+      options:
+        - localfs
+        - glue
+        - hive
+        - rest
+        - polaris
+        - unity
+        - other
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and arch
+      placeholder: linux/amd64, darwin/arm64
+    validations:
+      required: true
+
+  - type: textarea
+    id: command
+    attributes:
+      label: Command that reproduces the bug
+      render: bash
+      placeholder: |
+        iceberg-sentry audit --catalog glue --namespace finance --format sarif
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behaviour + full error output
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else — logs, table schema, metadata JSON, screenshots

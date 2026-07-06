@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose a new capability or improvement
+title: "[feature] "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that is difficult or impossible today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Concretely — what should Sentry do? CLI shape, output shape, etc.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Existing workarounds. Explain why they fall short.
+
+  - type: dropdown
+    id: phase
+    attributes:
+      label: Which spec phase is this?
+      options:
+        - "Extension of an existing feature"
+        - "Phase 4 — SaaS / Community"
+        - "New / not in the spec"
+    validations:
+      required: true

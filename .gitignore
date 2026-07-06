@@ -1,0 +1,27 @@
+# Binaries
+/iceberg-sentry
+/dist/
+/bin/
+
+# Go build cache
+*.test
+*.out
+coverage.txt
+coverage.html
+
+# Editors
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+
+# Generated fixtures
+/testdata/fixtures/generated/
+
+# Python (for fixture script)
+__pycache__/
+*.pyc
+.venv/
+venv/

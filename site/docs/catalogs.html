@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Catalogs — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+<meta name="description" content="Configure LocalFS, AWS Glue, Hive Metastore (Kerberos), or Iceberg REST (Polaris, Unity) with bearer / OAuth2 auth." />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="canonical" href="https://icebergsentry.io/docs/catalogs.html" />
+<link rel="icon" type="image/svg+xml" href="../assets/img/favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Catalogs — Iceberg Sentry" />
+<meta property="og:description" content="Configure LocalFS, AWS Glue, Hive Metastore (Kerberos), or Iceberg REST (Polaris, Unity) with bearer / OAuth2 auth." />
+<meta property="og:image" content="https://icebergsentry.io/assets/img/og.svg" />
+<meta property="og:url" content="https://icebergsentry.io/docs/catalogs.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Catalogs — Iceberg Sentry" />
+<meta name="twitter:description" content="Configure LocalFS, AWS Glue, Hive Metastore (Kerberos), or Iceberg REST (Polaris, Unity) with bearer / OAuth2 auth." />
+<meta name="twitter:image" content="https://icebergsentry.io/assets/img/og.svg" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>Catalogs</h1>
+    <p class="muted">Sentry talks to the catalog you already operate to resolve <code>namespace.table</code> → metadata location. The actual table bytes are read directly from storage.</p>
+
+    <h2 id="localfs">LocalFS</h2>
+    <p>Directory-backed catalog matching HadoopCatalog's layout:</p>
+<pre>&lt;root&gt;/&lt;namespace&gt;/&lt;table&gt;/metadata/vN.metadata.json
+                          /data/...</pre>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog localfs --catalog-root ./warehouse \
+    --table finance.transactions</pre>
+    <p>Useful for tests, air-gapped clusters, and the pyiceberg-generated fixtures shipped in <code>scripts/gen_fixtures.py</code>.</p>
+
+    <h2 id="glue">AWS Glue Data Catalog</h2>
+    <p>Reads the <code>metadata_location</code> table parameter (Iceberg's Glue convention).</p>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog glue --namespace finance</pre>
+    <p><strong>Cross-account access</strong> — pass <code>--glue-catalog &lt;account-id&gt;</code> and assume the target role via your AWS profile or environment.</p>
+<pre><span style="color:var(--accent)">$</span> AWS_PROFILE=glue-reader iceberg-sentry audit \
+    --catalog glue --glue-catalog 123456789012 \
+    --namespace finance</pre>
+
+    <h2 id="hive">Hive Metastore (Thrift)</h2>
+    <p>Speaks the HMS Thrift protocol directly via the apache/thrift Go runtime. We implement just the two RPCs we need (<code>get_table</code>, <code>get_all_tables</code>); no thrift-generated bloat.</p>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog hive --hive hms.example.com:9083 \
+    --namespace finance</pre>
+
+    <h3>Kerberos</h3>
+    <p>For Cloudera CDP deployments running <code>hive.metastore.sasl.enabled=true</code>:</p>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog hive --hive hms.example.com:9083 \
+    --hive-principal "iceberg-sentry@EXAMPLE.COM" \
+    --hive-keytab /etc/iceberg-sentry/sentry.keytab \
+    --namespace finance</pre>
+    <p class="small muted">The keytab is loaded via gokrb5; <code>/etc/krb5.conf</code> is consulted automatically (override with <code>KRB5_CONFIG</code>).</p>
+
+    <h2 id="rest">Iceberg REST (Polaris, Tabular, Unity, Nessie)</h2>
+    <p>Conforms to the Iceberg REST spec. Aliases <code>polaris</code> and <code>unity</code> are accepted in addition to <code>rest</code>.</p>
+
+    <h3>Bearer token</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog rest --rest https://catalog.example.com/api/catalog \
+    --rest-token "$SENTRY_REST_TOKEN" \
+    --namespace finance</pre>
+
+    <h3>OAuth2 client credentials (Polaris / Unity)</h3>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit \
+    --catalog polaris --rest https://polaris.example.com/api/catalog \
+    --rest-oauth-client-id "$CLIENT_ID" \
+    --rest-oauth-client-secret "$CLIENT_SECRET" \
+    --rest-oauth-token-url https://polaris.example.com/api/oauth/token \
+    --namespace finance</pre>
+    <p>The adapter caches the access token and refreshes it 30s before <code>expires_in</code>.</p>
+
+    <h2 id="storage">Storage backends</h2>
+    <p>The storage layer is dispatched by URI scheme returned by the catalog:</p>
+    <table class="flags">
+      <thead><tr><th>Scheme</th><th>Backend</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td><code>file://</code> / bare path</td><td>Local FS</td><td>For dev + LocalFS catalog.</td></tr>
+        <tr><td><code>s3://</code></td><td>aws-sdk-go-v2 S3</td><td>Works against MinIO/LocalStack with <code>--s3-path-style</code>.</td></tr>
+        <tr><td><code>hdfs://</code></td><td>WebHDFS</td><td>Pass the WebHDFS root via <code>--hdfs URL</code>.</td></tr>
+      </tbody>
+    </table>
+    <p>ADLS Gen2 and GCS are accessed via their S3-compatible endpoints today; native backends are on the Phase 4 roadmap.</p>
+
+    <h2 id="comparison">Pick the right one</h2>
+    <table class="comparison">
+      <thead><tr><th></th><th>Localfs</th><th>Glue</th><th>Hive</th><th>REST</th></tr></thead>
+      <tbody>
+        <tr><td>Auth required</td><td class="no">—</td><td>IAM</td><td>none / Kerberos</td><td>bearer / OAuth2</td></tr>
+        <tr><td>Cross-account</td><td class="no">—</td><td class="yes">via STS</td><td class="no">—</td><td class="partial">via token scope</td></tr>
+        <tr><td>Cloudera CDP</td><td class="no">—</td><td class="no">—</td><td class="yes">primary</td><td class="partial">if exposed</td></tr>
+        <tr><td>Databricks</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">via Unity REST</td></tr>
+        <tr><td>Snowflake / Polaris</td><td class="no">—</td><td class="no">—</td><td class="no">—</td><td class="yes">primary</td></tr>
+      </tbody>
+    </table>
+
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

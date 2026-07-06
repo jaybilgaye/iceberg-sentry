@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Policy (sentry.yaml) — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+<meta name="description" content="sentry.yaml — version-controlled thresholds, scoped by namespace glob." />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="canonical" href="https://icebergsentry.io/docs/policy.html" />
+<link rel="icon" type="image/svg+xml" href="../assets/img/favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Policy — Iceberg Sentry" />
+<meta property="og:description" content="sentry.yaml — version-controlled thresholds, scoped by namespace glob." />
+<meta property="og:image" content="https://icebergsentry.io/assets/img/og.svg" />
+<meta property="og:url" content="https://icebergsentry.io/docs/policy.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Policy — Iceberg Sentry" />
+<meta name="twitter:description" content="sentry.yaml — version-controlled thresholds, scoped by namespace glob." />
+<meta name="twitter:image" content="https://icebergsentry.io/assets/img/og.svg" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>Policy as Code — sentry.yaml</h1>
+    <p class="muted">Version-controlled thresholds, scoped by namespace glob. Apply with <code>--policy sentry.yaml</code> on any command that supports it.</p>
+
+    <h2 id="example">A complete example</h2>
+<pre>version: "1.0"
+default_catalog: glue
+
+policies:
+  - name: finance-compliance
+    target_namespace: "finance.*"
+    max_snapshot_age: 30d
+    min_file_size_mb: 128
+    max_manifest_files: 500
+    max_partition_skew_percent: 20
+    pii_scan: true
+    fail_on_orphans: false
+    fail_on_pii_untagged: true
+    delete_file_ratio_warn: 0.10
+    delete_file_ratio_fail: 0.25
+    write_pattern: auto
+    min_health_score: 75
+
+  - name: raw-zone-relaxed
+    target_namespace: "raw.*"
+    max_snapshot_age: 7d
+    min_file_size_mb: 32
+    write_pattern: streaming
+    min_health_score: 50
+    pii_scan: true
+    fail_on_pii_untagged: true</pre>
+
+    <h2 id="fields">Field reference</h2>
+    <table class="flags">
+      <thead><tr><th>Key</th><th>Type</th><th>Affects</th></tr></thead>
+      <tbody>
+        <tr><td>version</td><td>string</td><td>Required header.</td></tr>
+        <tr><td>default_catalog</td><td>string</td><td>Catalog name applied when CLI lacks <code>--catalog</code>.</td></tr>
+        <tr><td>policies</td><td>list</td><td>One per namespace pattern.</td></tr>
+        <tr><td>policies[].name</td><td>string</td><td>Label for diagnostics.</td></tr>
+        <tr><td>policies[].target_namespace</td><td>glob</td><td>Matches namespaces. Supports <code>*</code> and trailing <code>.*</code>.</td></tr>
+        <tr><td>min_file_size_mb</td><td>int</td><td>Overrides file_size threshold.</td></tr>
+        <tr><td>max_manifest_files</td><td>int</td><td>Warn threshold for manifest_density (crit is 2×).</td></tr>
+        <tr><td>max_snapshot_age</td><td>duration</td><td>Warn threshold for snapshot dim. <code>14d</code>, <code>30d</code>, <code>12h</code>.</td></tr>
+        <tr><td>delete_file_ratio_warn</td><td>float</td><td>Warn threshold for delete_amplification.</td></tr>
+        <tr><td>delete_file_ratio_fail</td><td>float</td><td>Critical threshold.</td></tr>
+        <tr><td>write_pattern</td><td>enum</td><td><code>auto</code> · <code>streaming</code> · <code>batch</code>. Forces the classifier.</td></tr>
+        <tr><td>min_health_score</td><td>int</td><td>CI gate: fail if composite drops below.</td></tr>
+        <tr><td>pii_scan</td><td>bool</td><td>Operational hint consumed by orchestration.</td></tr>
+        <tr><td>fail_on_pii_untagged</td><td>bool</td><td>If true, surfaces exit code 3.</td></tr>
+        <tr><td>fail_on_orphans</td><td>bool</td><td>Operational hint consumed by orchestration.</td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="namespace-matching">Namespace matching</h2>
+    <p>Patterns are matched against the table's namespace, not the table name. First-match-wins, in document order.</p>
+    <ul>
+      <li><code>"*"</code> or <code>""</code> — match every namespace.</li>
+      <li><code>"finance"</code> — exact match.</li>
+      <li><code>"finance.*"</code> — match <code>finance</code> and any namespace starting <code>finance.</code> (Iceberg supports nested namespaces).</li>
+    </ul>
+
+    <h2 id="duration">Duration syntax</h2>
+    <p><code>max_snapshot_age</code> accepts the Go <code>time.Duration</code> syntax plus a "days" extension:</p>
+    <ul>
+      <li><code>30d</code>, <code>7d</code></li>
+      <li><code>12h</code>, <code>90m</code>, <code>3600s</code></li>
+    </ul>
+
+    <h2 id="usage">Usage in CLI commands</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry audit --policy sentry.yaml --namespace finance --fail-on warn</pre>
+
+    <p>Combine with <code>--fail-on warn</code> in CI so warnings (which the policy intentionally raises before critical) surface as build failures.</p>
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

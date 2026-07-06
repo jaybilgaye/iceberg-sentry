@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>cost — Iceberg Sentry</title>
+<link rel="stylesheet" href="../assets/css/main.css" />
+<meta name="description" content="Snapshot cost timeline and cold-tier candidates. Pluggable cost provider with S3 list-price defaults." />
+<meta name="theme-color" content="#0a0a0a" />
+<link rel="canonical" href="https://icebergsentry.io/docs/cost.html" />
+<link rel="icon" type="image/svg+xml" href="../assets/img/favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="cost — Iceberg Sentry" />
+<meta property="og:description" content="Snapshot cost timeline and cold-tier candidates. Pluggable cost provider with S3 list-price defaults." />
+<meta property="og:image" content="https://icebergsentry.io/assets/img/og.svg" />
+<meta property="og:url" content="https://icebergsentry.io/docs/cost.html" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="cost — Iceberg Sentry" />
+<meta name="twitter:description" content="Snapshot cost timeline and cold-tier candidates. Pluggable cost provider with S3 list-price defaults." />
+<meta name="twitter:image" content="https://icebergsentry.io/assets/img/og.svg" />
+</head>
+<body>
+<header class="topbar"><div class="topbar-inner">
+  <a class="brand" href="../"><span class="mark">⌬</span><span class="name">iceberg-sentry</span><span class="tag">// v0.3</span></a>
+  <nav class="topnav"><a href="./" class="active">docs</a><a href="../examples.html">examples</a><a href="https://github.com/jaybilgaye/iceberg-sentry">github</a><button class="theme-toggle" data-theme-toggle>dark</button></nav>
+</div></header>
+<div class="docs-layout">
+  <aside class="sidebar" data-docs-sidebar></aside>
+  <main class="docs-main prose">
+
+    <h1>cost</h1>
+    <p class="muted">Snapshot Cost Timeline + cold-tier transition candidates. Pluggable cost provider; defaults to S3 Standard list-price rates.</p>
+
+    <h2 id="what">What it does</h2>
+    <p>Walks the snapshot history, summing per-snapshot added-bytes minus removed-bytes from the snapshot summary. Emits per-snapshot cumulative GB, monthly USD at the configured rate, and a tier-candidate flag for snapshots older than the cold-tier cutoff.</p>
+
+    <h2 id="example">Example</h2>
+<pre><span style="color:var(--accent)">$</span> iceberg-sentry cost \
+    --catalog rest --rest http://catalog:8181 \
+    --table finance.transactions \
+    --cold-tier-days 90</pre>
+
+    <div class="terminal">
+      <div class="term-head"><div class="dots"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span></div><span>~ cost timeline</span></div>
+<pre>  Snapshot Cost Timeline: finance.transactions
+  ─────────────────────────────────────────────────────────────────
+  Provider: s3-standard   Rate: $0.0230 / GB-month   (list-price estimate)
+
+  snapshot             ts           GB           $/mo         tier?
+  18923742891          2026-01-12   12.42        0.29
+  19012387123          2026-02-01   24.81        0.57
+  19384712347          2026-03-15   38.04        0.87
+  19612348721          2026-04-22   45.61        1.05         cold
+  19887123421          2026-04-29   46.10        1.06         cold</pre>
+    </div>
+
+    <h2 id="flags">Flags</h2>
+    <table class="flags">
+      <thead><tr><th>Flag</th><th>Default</th><th>Description</th></tr></thead>
+      <tbody>
+        <tr><td>--table</td><td><em>required</em></td><td>Fully qualified table id.</td></tr>
+        <tr><td>--rate</td><td>0</td><td>Override $/GB/month for the standard class (0 = use provider default).</td></tr>
+        <tr><td>--provider</td><td>s3-standard</td><td>Informational provider name surfaced in output.</td></tr>
+        <tr><td>--cold-tier-days</td><td>90</td><td>Snapshots older than this are flagged as cold-tier candidates.</td></tr>
+        <tr><td>--format</td><td>text</td><td><code>text</code> · <code>json</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2 id="provider">Built-in rates (list price)</h2>
+    <table class="flags">
+      <tbody>
+        <tr><td>standard</td><td>$0.023 / GB-mo</td></tr>
+        <tr><td>infrequent-access</td><td>$0.0125 / GB-mo</td></tr>
+        <tr><td>glacier-instant</td><td>$0.004 / GB-mo</td></tr>
+        <tr><td>glacier-deep</td><td>$0.00099 / GB-mo</td></tr>
+      </tbody>
+    </table>
+    <p class="small muted">All figures are labelled as estimates. Override <code>--rate</code> for negotiated discounts. Phase 4 will register additional providers (Azure ADLS Gen2, GCS).</p>
+
+  </main>
+</div>
+<script src="../assets/js/site.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+apiVersion: v2
+name: iceberg-sentry
+description: Iceberg Sentry — lakehouse reliability scanner for Apache Iceberg
+type: application
+version: 0.3.0
+appVersion: "phase-3"
+keywords:
+  - iceberg
+  - data-lake
+  - observability
+  - lakehouse
+home: https://github.com/jaybilgaye/iceberg-sentry
+sources:
+  - https://github.com/jaybilgaye/iceberg-sentry
+maintainers:
+  - name: Jayprakash Bilgaye

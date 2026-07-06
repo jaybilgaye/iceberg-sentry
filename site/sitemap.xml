@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://icebergsentry.io/</loc><priority>1.0</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/examples.html</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/</loc><priority>0.9</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/install.html</loc><priority>0.9</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/quickstart.html</loc><priority>0.9</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/concepts.html</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/audit.html</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/orphans.html</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/pii.html</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/bench.html</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/migration.html</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/cost.html</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/export.html</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/catalogs.html</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/policy.html</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/ci-integration.html</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/deployment.html</loc><priority>0.8</priority><changefreq>weekly</changefreq></url>
+  <url><loc>https://icebergsentry.io/docs/architecture.html</loc><priority>0.7</priority><changefreq>weekly</changefreq></url>
+</urlset>
