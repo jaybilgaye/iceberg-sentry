@@ -130,10 +130,10 @@ func buildTableFixture(t testing.TB, dataFiles, deleteFiles int, dataFileSize in
 		"sequence_number":      int64(1),
 		"min_sequence_number":  int64(1),
 		"added_snapshot_id":    int64(100),
-		"added_files_count":    int32(int32(dataFiles + deleteFiles)),
+		"added_files_count":    int32(dataFiles + deleteFiles),
 		"existing_files_count": int32(0),
 		"deleted_files_count":  int32(0),
-		"added_rows_count":     int64(int64(dataFiles * 100)),
+		"added_rows_count":     int64(dataFiles * 100),
 		"existing_rows_count":  int64(0),
 		"deleted_rows_count":   int64(0),
 	}})

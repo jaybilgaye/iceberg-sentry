@@ -23,11 +23,10 @@ import (
 
 // Hive is the catalog adapter.
 type Hive struct {
-	host          string
-	port          int
-	transportFn   func() (thrift.TTransport, error)
-	protocolFn    func(thrift.TTransport) thrift.TProtocol
-	defaultClient *thriftClient
+	host        string
+	port        int
+	transportFn func() (thrift.TTransport, error)
+	protocolFn  func(thrift.TTransport) thrift.TProtocol
 }
 
 // Option configures the adapter.
@@ -51,7 +50,7 @@ func New(host string, port int, opts ...Option) *Hive {
 	}
 	if h.transportFn == nil {
 		h.transportFn = func() (thrift.TTransport, error) {
-			return thrift.NewTSocket(addr(h.host, h.port))
+			return thrift.NewTSocketConf(addr(h.host, h.port), nil), nil
 		}
 	}
 	if h.protocolFn == nil {

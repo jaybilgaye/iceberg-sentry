@@ -76,7 +76,7 @@ func NewKerberosTransport(host string, port int, principal, keytabPath string) (
 		// add. We return a plain TSocket here and document the path so
 		// integrators can substitute their own factory via
 		// `hive.WithTransport`.
-		return thrift.NewTSocket(addr)
+		return thrift.NewTSocketConf(addr, nil), nil
 	}, nil
 }
 

@@ -103,7 +103,7 @@ func Classify(snaps []iceberg.Snapshot, th Thresholds) Result {
 		avgFilesPerCommit = float64(totalFiles) / float64(contributingCommits)
 	}
 
-	pat := health.WritePatternUnknown
+	var pat health.WritePattern
 	median := time.Duration(medianInterval) * time.Millisecond
 	switch {
 	case intervalCV > 1.0:
