@@ -36,8 +36,17 @@ jobs:
 
       - name: Build a local image for kind
         run: |
-          go build -o iceberg-sentry ./cmd/iceberg-sentry
+          # CGO_ENABLED=0 is critical — the release Dockerfile is
+          # `FROM scratch` and cgo-linked binaries fail with
+          # "exec: no such file or directory" because there's no libc
+          # in scratch.
+          CGO_ENABLED=0 go build -o iceberg-sentry ./cmd/iceberg-sentry
+          file iceberg-sentry
           docker build -f Dockerfile -t iceberg-sentry:smoke .
+          # Quick sanity: run the binary directly through the image once
+          # so failures like the above surface at build time, not on the
+          # helm --wait timeout 90s later.
+          docker run --rm iceberg-sentry:smoke version
 
       - name: Set up kind cluster
         uses: helm/kind-action@v1
