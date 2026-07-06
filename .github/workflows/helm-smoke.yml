@@ -1,0 +1,107 @@
+name: Helm smoke
+
+# Spins a kind cluster, installs the chart in exporter mode, verifies the
+# ServiceAccount + ConfigMap + Deployment come up, and hits /healthz.
+#
+# Doesn't exercise the CronJob path (no cluster time to wait 24h) and doesn't
+# install kube-prometheus-stack CRDs — ServiceMonitor is switched off in the
+# smoke config.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/helm/**'
+      - '.github/workflows/helm-smoke.yml'
+  pull_request:
+    paths:
+      - 'deploy/helm/**'
+      - '.github/workflows/helm-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  kind-install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Build a local image for kind
+        run: |
+          go build -o iceberg-sentry ./cmd/iceberg-sentry
+          docker build -f Dockerfile -t iceberg-sentry:smoke .
+
+      - name: Set up kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: sentry-smoke
+          wait: 60s
+
+      - name: Load local image into kind
+        run: kind load docker-image iceberg-sentry:smoke --name sentry-smoke
+
+      - name: Install Helm chart (exporter mode, no ServiceMonitor)
+        run: |
+          # LocalFS catalog against a bind-mounted empty dir keeps the pod
+          # from crashing on missing AWS creds; the exporter still serves
+          # /metrics + /healthz which is what this smoke test cares about.
+          helm install sentry deploy/helm \
+            --set image.repository=iceberg-sentry \
+            --set image.tag=smoke \
+            --set image.pullPolicy=IfNotPresent \
+            --set cronjob.enabled=false \
+            --set exporter.enabled=true \
+            --set exporter.args='{export,--catalog=localfs,--catalog-root=/tmp,--namespace=nothing}' \
+            --set serviceMonitor.enabled=false \
+            --set exporter.envSecretName= \
+            --wait --timeout=2m
+
+      - name: Verify resources exist
+        run: |
+          kubectl get sa sentry-iceberg-sentry
+          kubectl get cm sentry-iceberg-sentry-policy
+          kubectl get deploy sentry-iceberg-sentry-exporter
+          kubectl get svc sentry-iceberg-sentry-exporter
+
+      - name: Wait for exporter pod ready
+        run: |
+          kubectl wait --for=condition=Ready pod \
+            -l app.kubernetes.io/component=exporter --timeout=2m
+
+      - name: Curl /healthz through port-forward
+        run: |
+          kubectl port-forward svc/sentry-iceberg-sentry-exporter 9400:9400 &
+          PF_PID=$!
+          # Wait until port-forward is actually ready
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:9400/healthz >/dev/null 2>&1; then
+              echo "healthz OK"
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -sf http://127.0.0.1:9400/healthz; then
+            echo "::error::/healthz did not return 200"
+            kubectl logs -l app.kubernetes.io/component=exporter --tail=100 || true
+            kill $PF_PID 2>/dev/null || true
+            exit 1
+          fi
+          echo
+          echo "=== /metrics first 10 lines ==="
+          curl -sf http://127.0.0.1:9400/metrics | head -10 || true
+          kill $PF_PID 2>/dev/null || true
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          kubectl get all -A
+          kubectl describe deploy sentry-iceberg-sentry-exporter || true
+          kubectl logs -l app.kubernetes.io/component=exporter --tail=200 || true

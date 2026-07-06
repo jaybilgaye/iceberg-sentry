@@ -1,0 +1,100 @@
+name: Release smoke
+
+# Fires after a release is published. Downloads the release via install.sh,
+# runs `iceberg-sentry version` and `iceberg-sentry audit --help`, and
+# comments the result on the release. Also pulls and runs the multi-arch
+# Docker image.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to smoke-test (e.g. v0.3.0)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  install-sh:
+    name: install.sh + binary smoke
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install via install.sh
+        env:
+          SENTRY_VERSION: ${{ steps.tag.outputs.tag }}
+          SENTRY_PREFIX: ${{ github.workspace }}/bin
+        run: |
+          mkdir -p "$SENTRY_PREFIX"
+          sh scripts/install.sh
+          echo "$SENTRY_PREFIX" >> "$GITHUB_PATH"
+
+      - name: Verify version output
+        run: |
+          iceberg-sentry version
+          iceberg-sentry version | grep -q "${{ steps.tag.outputs.tag }}" \
+            || (echo "::error::version output missing the tag"; exit 1)
+
+      - name: Verify audit help
+        run: iceberg-sentry audit --help | head -20
+
+      - name: Verify checksum was enforced
+        run: |
+          # The install.sh already refuses to install if the checksum mismatches;
+          # re-run with SENTRY_NO_VERIFY=1 and confirm it warns.
+          SENTRY_VERSION=${{ steps.tag.outputs.tag }} \
+          SENTRY_PREFIX=${{ github.workspace }}/bin2 \
+          SENTRY_NO_VERIFY=1 \
+            sh scripts/install.sh 2>&1 | tee /tmp/install-noverify.log
+          grep -q "SENTRY_NO_VERIFY set" /tmp/install-noverify.log \
+            || (echo "::error::install.sh did not honour SENTRY_NO_VERIFY"; exit 1)
+
+  docker-image:
+    name: Docker image smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pull image
+        run: docker pull ghcr.io/jaybilgaye/iceberg-sentry:${{ steps.tag.outputs.tag }}
+
+      - name: Verify version
+        run: |
+          out=$(docker run --rm ghcr.io/jaybilgaye/iceberg-sentry:${{ steps.tag.outputs.tag }} version)
+          echo "$out"
+          echo "$out" | grep -q "${{ steps.tag.outputs.tag }}" \
+            || (echo "::error::docker image version output missing the tag"; exit 1)
+
+      - name: Verify arm64 variant exists in manifest
+        run: |
+          docker buildx imagetools inspect \
+            ghcr.io/jaybilgaye/iceberg-sentry:${{ steps.tag.outputs.tag }} \
+            | tee /tmp/manifest.txt
+          grep -q "linux/arm64" /tmp/manifest.txt \
+            || (echo "::error::multi-arch manifest missing linux/arm64"; exit 1)
+          grep -q "linux/amd64" /tmp/manifest.txt \
+            || (echo "::error::multi-arch manifest missing linux/amd64"; exit 1)

@@ -66,7 +66,7 @@ curl -sSL https://raw.githubusercontent.com/jaybilgaye/iceberg-sentry/main/scrip
 <td>
 
 ```sh
-# Docker
+# Docker (multi-arch)
 docker pull ghcr.io/jaybilgaye/iceberg-sentry:latest
 ```
 
@@ -76,16 +76,17 @@ docker pull ghcr.io/jaybilgaye/iceberg-sentry:latest
 <td>
 
 ```sh
-# Homebrew
-brew install jaybilgaye/iceberg-sentry/iceberg-sentry
+# From source
+go install github.com/jaybilgaye/iceberg-sentry/cmd/iceberg-sentry@latest
 ```
 
 </td>
 <td>
 
 ```sh
-# From source
-go install github.com/jaybilgaye/iceberg-sentry/cmd/iceberg-sentry@latest
+# Pinned release archive
+gh release download v0.3.0 --repo jaybilgaye/iceberg-sentry \
+  --pattern 'iceberg-sentry_*_linux_x86_64.tar.gz'
 ```
 
 </td>
