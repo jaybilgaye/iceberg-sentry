@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 620" font-family="ui-monospace, 'JetBrains Mono', monospace" font-size="14">
+  <!-- outer window -->
+  <rect x="0" y="0" width="900" height="620" rx="12" fill="#0a1224" stroke="#1a2b52"/>
+  <rect x="0" y="0" width="900" height="34" rx="12" fill="#0f1a2b"/>
+  <rect x="0" y="22" width="900" height="12" fill="#0f1a2b"/>
+
+  <!-- traffic lights -->
+  <circle cx="20" cy="17" r="6" fill="#ff5f56"/>
+  <circle cx="40" cy="17" r="6" fill="#ffbd2e"/>
+  <circle cx="60" cy="17" r="6" fill="#27c93f"/>
+
+  <!-- title -->
+  <text x="450" y="21" text-anchor="middle" fill="#7a8ba8">iceberg-sentry ~ audit finance.transactions</text>
+
+  <g transform="translate(24,66)" fill="#e7e7e7">
+    <!-- prompt line -->
+    <text x="0" y="0"><tspan fill="#5ca7ff">$</tspan> iceberg-sentry audit \</text>
+    <text x="16" y="20">  --catalog rest --rest http://catalog:8181 \</text>
+    <text x="16" y="40">  --table finance.transactions --format text</text>
+
+    <!-- output header -->
+    <text x="0" y="82">Table: finance.transactions  │  Score: 61/100  <tspan fill="#ef4444" font-weight="700">CRITICAL</tspan></text>
+    <text x="0" y="100" fill="#28406b">─────────────────────────────────────────────────────────────────</text>
+
+    <!-- critical row 1 -->
+    <text x="0" y="126"><tspan fill="#ef4444">[CRITICAL]</tspan>   Delete File Amplification   12/20   <tspan fill="#c5cddb">1,842 delete files</tspan></text>
+    <text x="0" y="146" fill="#7a8ba8">              → 23% of scan I/O is delete merging. Run REWRITE_DATA.</text>
+    <text x="0" y="166" fill="#7a8ba8">              → <tspan fill="#8ac6ff">ALTER TABLE finance.transactions EXECUTE rewrite_data_files(...)</tspan></text>
+
+    <!-- warning rows -->
+    <text x="0" y="196"><tspan fill="#f59e0b">[WARNING]</tspan>    Manifest Density             8/15   <tspan fill="#c5cddb">3,401 manifest files</tspan></text>
+    <text x="0" y="216" fill="#7a8ba8">              → Exceeds 2,000 manifest threshold. Run rewrite_manifests.</text>
+
+    <text x="0" y="246"><tspan fill="#f59e0b">[WARNING]</tspan>    Small Files                 12/20   <tspan fill="#c5cddb">68% files &lt; 64MB</tspan></text>
+    <text x="0" y="266" fill="#7a8ba8">              → 4,201 files below optimal size. Compaction recommended.</text>
+
+    <!-- ok rows -->
+    <text x="0" y="296"><tspan fill="#22c55e">[OK]</tspan>         Snapshot Health             14/15   <tspan fill="#c5cddb">12 snapshots, oldest 8d</tspan></text>
+    <text x="0" y="316"><tspan fill="#22c55e">[OK]</tspan>         Partition Skew              14/15   <tspan fill="#c5cddb">CV=0.11, max skew 11%</tspan></text>
+    <text x="0" y="336"><tspan fill="#22c55e">[OK]</tspan>         Schema Evolution            10/10   <tspan fill="#c5cddb">No dangerous patterns</tspan></text>
+
+    <!-- info row -->
+    <text x="0" y="366"><tspan fill="#60a5fa">[INFO]</tspan>       Format Version               3/5    <tspan fill="#c5cddb">Iceberg v1 — v2 upgrade available</tspan></text>
+
+    <!-- footer -->
+    <text x="0" y="392" fill="#28406b">─────────────────────────────────────────────────────────────────</text>
+    <text x="0" y="418" fill="#7a8ba8">Estimated monthly waste: <tspan fill="#8ac6ff">~$340</tspan>  │  Write pattern: <tspan fill="#8ac6ff">batch</tspan>  │  Scan: <tspan fill="#8ac6ff">4.2s</tspan></text>
+
+    <!-- second command -->
+    <text x="0" y="464"><tspan fill="#5ca7ff">$</tspan> iceberg-sentry bench compare --table finance.transactions --tag pre-compact</text>
+    <text x="0" y="490" fill="#c5cddb">Benchmark: finance.transactions  │  pre-compact → current</text>
+    <text x="0" y="510" fill="#c5cddb">Health Score:      <tspan fill="#f59e0b">61</tspan>  →  <tspan fill="#22c55e">89</tspan>     <tspan fill="#22c55e">(+28)</tspan></text>
+    <text x="0" y="530" fill="#c5cddb">Delete Files:   <tspan fill="#ef4444">1,842</tspan>  →  <tspan fill="#22c55e">0</tspan>      <tspan fill="#22c55e">(-100%)</tspan></text>
+    <text x="0" y="550" fill="#c5cddb">Manifest Files: 3,401  →  124    <tspan fill="#22c55e">(-96%)</tspan></text>
+  </g>
+</svg>
