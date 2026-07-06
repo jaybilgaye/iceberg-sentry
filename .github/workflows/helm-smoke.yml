@@ -49,20 +49,31 @@ jobs:
         run: kind load docker-image iceberg-sentry:smoke --name sentry-smoke
 
       - name: Install Helm chart (exporter mode, no ServiceMonitor)
+        timeout-minutes: 4
         run: |
-          # LocalFS catalog against a bind-mounted empty dir keeps the pod
-          # from crashing on missing AWS creds; the exporter still serves
-          # /metrics + /healthz which is what this smoke test cares about.
-          helm install sentry deploy/helm \
+          # Wall-clock kill of helm install after 3m — belt-and-suspenders
+          # against helm's own --wait timeout being ignored (as it was in
+          # the first run of this workflow).
+          #
+          # AWS_EC2_METADATA_DISABLED=true is critical: buildStorage
+          # unconditionally initializes an S3 backend, which calls
+          # aws-sdk-go-v2 LoadDefaultConfig, which polls EC2 IMDS. On kind
+          # inside a GH runner the IMDS endpoint is not reachable and the
+          # SDK's IMDS retry loop hangs the exporter's synchronous initial
+          # scan for several minutes, blocking /healthz from ever going
+          # green.
+          timeout --preserve-status --signal=KILL 180 helm install sentry deploy/helm \
             --set image.repository=iceberg-sentry \
             --set image.tag=smoke \
             --set image.pullPolicy=IfNotPresent \
             --set cronjob.enabled=false \
             --set exporter.enabled=true \
             --set exporter.args='{export,--catalog=localfs,--catalog-root=/tmp,--namespace=nothing}' \
+            --set 'exporter.extraEnv[0].name=AWS_EC2_METADATA_DISABLED' \
+            --set-string 'exporter.extraEnv[0].value=true' \
             --set serviceMonitor.enabled=false \
             --set exporter.envSecretName= \
-            --wait --timeout=2m
+            --wait --timeout=90s
 
       - name: Verify resources exist
         run: |

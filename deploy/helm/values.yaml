@@ -27,6 +27,10 @@ exporter:
     - --catalog=glue
     - --namespace=finance
   envSecretName: iceberg-sentry-aws
+  # extraEnv is a list of {name, value} entries merged into the container.
+  # Useful for AWS_EC2_METADATA_DISABLED=true when running outside EC2, or
+  # for tuning AWS_REGION / AWS_ROLE_ARN.
+  extraEnv: []
 
 policy:
   # Inline policy contents. The chart materialises a ConfigMap from this.

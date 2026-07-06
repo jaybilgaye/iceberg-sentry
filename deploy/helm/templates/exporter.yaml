@@ -36,6 +36,10 @@ spec:
               port: 9400
             initialDelaySeconds: 15
             periodSeconds: 30
+          {{- with .Values.exporter.extraEnv }}
+          env:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- if .Values.exporter.envSecretName }}
           envFrom:
             - secretRef:

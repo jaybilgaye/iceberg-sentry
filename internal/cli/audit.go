@@ -10,6 +10,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -301,9 +302,18 @@ func buildCatalogFromAudit(ctx context.Context, f *auditFlags) (catalog.Catalog,
 func buildStorage(ctx context.Context, f *auditFlags) (*storage.Resolver, error) {
 	r := storage.NewResolver()
 	r.Register("file", storage.NewLocalFS())
-	if s3, err := storage.NewS3(ctx, storage.WithS3PathStyle(f.pathStyle)); err == nil {
+
+	// Wrap S3 construction in a short timeout so aws-sdk-go-v2's IMDS
+	// probe can't hang the whole process when the runtime environment
+	// (containers, kind, restricted-network CI) has no metadata endpoint.
+	// Users running against real S3 with valid config resolve well
+	// inside 3 seconds; unreachable IMDS hits our timeout and skips S3.
+	s3Ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	if s3, err := storage.NewS3(s3Ctx, storage.WithS3PathStyle(f.pathStyle)); err == nil {
 		r.Register("s3", s3)
 	}
+
 	if f.hdfsURL != "" {
 		r.Register("hdfs", storage.NewHDFS(f.hdfsURL))
 	}
