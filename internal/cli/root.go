@@ -5,11 +5,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// BuildInfo carries the build-time identity of the binary. Populated by
+// -ldflags at release build time.
+type BuildInfo struct {
+	Version   string
+	Commit    string
+	BuildDate string
+}
+
 // Execute runs the root command with the supplied args and returns the
 // process exit code plus any unexpected error encountered. Exit codes follow
 // the spec in internal/exitcode.
-func Execute(args []string, version string) (int, error) {
-	root := newRootCmd(version)
+func Execute(args []string, info BuildInfo) (int, error) {
+	root := newRootCmd(info)
 	root.SetArgs(args)
 	root.SilenceErrors = true
 	root.SilenceUsage = true
@@ -31,12 +39,12 @@ func Execute(args []string, version string) (int, error) {
 	return exitCode, nil
 }
 
-func newRootCmd(version string) *cobra.Command {
+func newRootCmd(info BuildInfo) *cobra.Command {
 	root := &cobra.Command{
 		Use:           "iceberg-sentry",
 		Short:         "Iceberg-native lakehouse reliability linter",
 		Long:          "iceberg-sentry audits Apache Iceberg tables for physical, metadata, performance, and cost-efficiency issues without requiring a running compute engine.",
-		Version:       version,
+		Version:       info.Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
 	}
@@ -48,7 +56,7 @@ func newRootCmd(version string) *cobra.Command {
 		newMigrationCmd(),
 		newCostCmd(),
 		newExportCmd(),
-		newVersionCmd(version),
+		newVersionCmd(info),
 	)
 	return root
 }

@@ -2,16 +2,22 @@ package cli
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 )
 
-func newVersionCmd(version string) *cobra.Command {
+func newVersionCmd(info BuildInfo) *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
 		Short: "Print the iceberg-sentry version",
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(cmd.OutOrStdout(), "iceberg-sentry %s\n", version)
+			w := cmd.OutOrStdout()
+			fmt.Fprintf(w, "iceberg-sentry %s\n", info.Version)
+			fmt.Fprintf(w, "  commit:     %s\n", info.Commit)
+			fmt.Fprintf(w, "  built:      %s\n", info.BuildDate)
+			fmt.Fprintf(w, "  go:         %s\n", runtime.Version())
+			fmt.Fprintf(w, "  platform:   %s/%s\n", runtime.GOOS, runtime.GOARCH)
 		},
 	}
 }

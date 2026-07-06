@@ -1,0 +1,12 @@
+# Default owner for everything in the repo.
+*                       @jaybilgaye
+
+# Component owners — as the project grows, individuals can take ownership.
+/internal/catalog/       @jaybilgaye
+/internal/scan/          @jaybilgaye
+/internal/health/        @jaybilgaye
+/internal/pii/           @jaybilgaye
+/internal/migration/     @jaybilgaye
+/deploy/                 @jaybilgaye
+/site/                   @jaybilgaye
+/.github/                @jaybilgaye

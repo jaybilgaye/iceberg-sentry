@@ -8,10 +8,19 @@ import (
 	"github.com/jaybilgaye/iceberg-sentry/internal/exitcode"
 )
 
-var version = "dev"
+// Populated by the release build via -ldflags (see Makefile / .goreleaser.yaml).
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = "unknown"
+)
 
 func main() {
-	code, err := cli.Execute(os.Args[1:], version)
+	code, err := cli.Execute(os.Args[1:], cli.BuildInfo{
+		Version:   version,
+		Commit:    commit,
+		BuildDate: buildDate,
+	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 	}

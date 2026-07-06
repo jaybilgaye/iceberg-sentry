@@ -1,0 +1,138 @@
+# GoReleaser configuration. `goreleaser release --clean` in CI cuts a
+# release when a v* tag is pushed.
+#
+# Docs: https://goreleaser.com
+
+version: 2
+
+project_name: iceberg-sentry
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: iceberg-sentry
+    main: ./cmd/iceberg-sentry
+    binary: iceberg-sentry
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.buildDate={{.Date}}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - id: iceberg-sentry
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+      - CHANGELOG.md
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"
+  algorithm: sha256
+
+snapshot:
+  version_template: "{{ .Tag }}-snapshot-{{ .ShortCommit }}"
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: "Features"
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: "Bug fixes"
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: "Other"
+      order: 999
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: jaybilgaye
+    name: iceberg-sentry
+  draft: false
+  prerelease: auto
+  header: |
+    ## Iceberg Sentry {{ .Tag }}
+    Iceberg-native lakehouse reliability linter. See the
+    [documentation site](https://icebergsentry.io/docs/) for install
+    instructions and full usage.
+  footer: |
+    ---
+    **Verify checksums**
+    ```
+    sha256sum -c iceberg-sentry_{{ .Version }}_checksums.txt
+    ```
+
+dockers:
+  - image_templates:
+      - "ghcr.io/jaybilgaye/iceberg-sentry:{{ .Tag }}-amd64"
+      - "ghcr.io/jaybilgaye/iceberg-sentry:latest-amd64"
+    dockerfile: Dockerfile
+    use: buildx
+    goos: linux
+    goarch: amd64
+    build_flag_templates:
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/jaybilgaye/iceberg-sentry"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+  - image_templates:
+      - "ghcr.io/jaybilgaye/iceberg-sentry:{{ .Tag }}-arm64"
+      - "ghcr.io/jaybilgaye/iceberg-sentry:latest-arm64"
+    dockerfile: Dockerfile
+    use: buildx
+    goos: linux
+    goarch: arm64
+    build_flag_templates:
+      - "--platform=linux/arm64"
+      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
+      - "--label=org.opencontainers.image.version={{ .Version }}"
+      - "--label=org.opencontainers.image.source=https://github.com/jaybilgaye/iceberg-sentry"
+      - "--label=org.opencontainers.image.licenses=Apache-2.0"
+
+docker_manifests:
+  - name_template: "ghcr.io/jaybilgaye/iceberg-sentry:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/jaybilgaye/iceberg-sentry:{{ .Tag }}-amd64"
+      - "ghcr.io/jaybilgaye/iceberg-sentry:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/jaybilgaye/iceberg-sentry:latest"
+    image_templates:
+      - "ghcr.io/jaybilgaye/iceberg-sentry:latest-amd64"
+      - "ghcr.io/jaybilgaye/iceberg-sentry:latest-arm64"
+
+sboms:
+  - artifacts: archive
+    documents:
+      - "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.sbom.spdx.json"

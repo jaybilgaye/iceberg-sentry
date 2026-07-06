@@ -1,225 +1,184 @@
-# Iceberg Sentry
+<div align="center">
 
-Iceberg-native lakehouse reliability linter — see
-[`Iceberg_Sentry_Spec_v2.md`](./Iceberg_Sentry_Spec_v2.md) for the full
-product specification.
+# ⌬ Iceberg Sentry
 
-This repository contains the working **Phase 1 + Phase 2 + Phase 3** delivery:
-an end-to-end CLI that scores Apache Iceberg table health, finds orphan
-files, samples for PII, classifies write patterns, runs a Cloudera CDP
-Migration Readiness Audit, models snapshot cost trajectories, and exports
-Prometheus metrics — all from metadata alone, with no compute engine
-required.
+**Iceberg-native lakehouse reliability linter.**
+Health score, delete-file amplification, orphan files, PII, partition skew, cost.
+From metadata alone — no compute cluster required.
 
-## What's implemented
+[![Go Reference](https://pkg.go.dev/badge/github.com/jaybilgaye/iceberg-sentry.svg)](https://pkg.go.dev/github.com/jaybilgaye/iceberg-sentry)
+[![Go Report Card](https://goreportcard.com/badge/github.com/jaybilgaye/iceberg-sentry)](https://goreportcard.com/report/github.com/jaybilgaye/iceberg-sentry)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+[![CI](https://github.com/jaybilgaye/iceberg-sentry/actions/workflows/ci.yml/badge.svg)](https://github.com/jaybilgaye/iceberg-sentry/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jaybilgaye/iceberg-sentry?sort=semver)](https://github.com/jaybilgaye/iceberg-sentry/releases)
 
-| Capability                  | Status                              |
-|-----------------------------|-------------------------------------|
-| Iceberg metadata JSON       | v1, v2, v3 (forward-compat parsing) |
-| Streaming Avro manifests    | manifest-list and manifest-file     |
-| Storage backends            | local FS, S3, WebHDFS               |
-| Catalogs                    | LocalFS, AWS Glue, Hive Metastore (Kerberos optional), Iceberg REST (OAuth2 client-credentials) |
-| Health dimensions           | file_size, delete_amplification, manifest_density, snapshot, partition_skew, format_version |
-| Write-pattern classifier    | streaming / batch / mixed / unknown |
-| Branch/tag-aware scanning   | `--branch <name>` flag              |
-| Orphan-file discovery       | Bloom-filter + storage crawl, dry-run, grace period |
-| PII scanner                 | Parquet row-group sampling, regex + entropy, Atlas-compatible JSON |
-| `bench` start/compare       | persisted baseline + before/after diff |
-| `migration` audit           | HDFS→CDP risk score, HDFS-path/property detection, v1→v2 hint |
-| `cost` timeline             | Pluggable cost provider, snapshot-history $/mo, cold-tier flags |
-| `export` Prometheus server  | `/metrics` + `/healthz` for ServiceMonitor scraping |
-| Push-gateway delivery       | `audit --format prometheus --push-gateway URL` |
-| Atlas/UC bulk-import payload | both PII and health-side findings   |
-| CLI exit codes              | 0–5 per spec §3.1                   |
-| Output formats              | `text`, `json`, `sarif`, `prometheus` |
-| Policy-as-code              | `sentry.yaml`                       |
-| GitHub Actions example      | SARIF upload + PR comment workflow  |
-| Perf regression CI          | benchstat over `internal/scan` and `internal/iceberg` |
-| Integration harness         | docker-compose for MinIO + REST + HMS |
-| Helm chart                  | CronJob + Deployment + ServiceMonitor under `deploy/helm/` |
-| K8s manifests               | `deploy/k8s/` standalone YAMLs       |
-| Grafana dashboard           | `deploy/grafana-dashboard.json`      |
-| Tests                       | unit + end-to-end pyiceberg-generated fixtures |
+[Website](https://icebergsentry.io) · [Docs](https://icebergsentry.io/docs/) · [Examples](https://icebergsentry.io/examples.html) · [Spec](./Iceberg_Sentry_Spec_v2.md)
 
-Phase 4 items (Nessie branch-history, Slack/PagerDuty alerts, dbt
-integration, OpenMetadata/DataHub exporter plugins, hosted SaaS MVP)
-remain on the roadmap.
+</div>
 
-## Build
+---
 
-```
-go build -o iceberg-sentry ./cmd/iceberg-sentry
+## Install
+
+```sh
+curl -sSL https://get.icebergsentry.io/install.sh | sh
 ```
 
-## Usage
+Or via Docker:
 
-Audit a single table from a local filesystem catalog:
-
-```
-iceberg-sentry audit \
-  --catalog localfs \
-  --catalog-root /path/to/warehouse \
-  --table finance.transactions \
-  --format text
+```sh
+docker pull ghcr.io/jaybilgaye/iceberg-sentry:latest
 ```
 
-Audit a Glue namespace and emit JSON for downstream processing:
+Or from source:
 
-```
-iceberg-sentry audit \
-  --catalog glue \
-  --namespace finance \
-  --format json
+```sh
+go install github.com/jaybilgaye/iceberg-sentry/cmd/iceberg-sentry@latest
 ```
 
-Apply a policy file and fail CI on warnings:
+Full instructions: [docs → Install](https://icebergsentry.io/docs/install.html).
+
+## What it does
+
+```sh
+iceberg-sentry audit --catalog rest --rest http://catalog:8181 \
+    --table finance.transactions
+```
 
 ```
-iceberg-sentry audit \
-  --catalog localfs --catalog-root ./warehouse \
-  --namespace finance \
-  --policy ./examples/sentry.yaml \
-  --fail-on warn
+  Table: finance.transactions  │  Score: 61/100  WARNING
+  ─────────────────────────────────────────────────────────────────
+  [CRITICAL]  Delete File Amplification  12/20   1,842 delete files
+              → 23% of scan I/O is delete merging. Run REWRITE_DATA.
+  [WARNING]   Manifest Density            8/15   3,401 manifest files
+  [WARNING]   Small Files                12/20   68% files < 64MB
+  [OK]        Snapshot Health            14/15   12 snapshots, oldest 8d
+  [OK]        Partition Skew             14/15   max skew 11%
+  [OK]        Schema Evolution           10/10   No dangerous patterns
+  [INFO]      Format Version              3/5    Iceberg v1 → v2 available
+  ─────────────────────────────────────────────────────────────────
+  Estimated monthly waste: ~$340  │  Scan time: 4.2s
 ```
 
-Emit SARIF for GitHub Code Scanning:
+## Features
 
-```
-iceberg-sentry audit \
-  --catalog rest --rest http://localhost:8181 \
-  --namespace finance \
-  --format sarif > iceberg.sarif
-```
+| Capability                        | Command / flag                                 |
+|-----------------------------------|------------------------------------------------|
+| Table health score (6 dimensions) | `audit`                                        |
+| Delete-file amplification         | `audit` — first-class dimension                |
+| Partition skew (CV)               | `audit` — first-class dimension                |
+| Orphan file discovery             | `orphans` (dry-run, grace period)              |
+| PII scanning (regex + entropy)    | `pii` — zero-disk-persistence                  |
+| Baseline / compare deltas         | `bench start` / `bench compare`                |
+| HDFS → CDP migration audit        | `migration`                                    |
+| Snapshot cost timeline            | `cost`                                         |
+| Prometheus exporter               | `export` (`/metrics` + `/healthz`) or `--push-gateway` |
+| Write-pattern classifier          | Streaming / batch / mixed / unknown            |
+| SARIF for GitHub Code Scanning    | `--format sarif`                               |
+| Policy as code                    | `--policy sentry.yaml`                         |
 
-Find orphan files (dry-run, 6-hour grace window):
+## Catalogs
 
-```
-iceberg-sentry orphans \
-  --catalog rest --rest http://localhost:8181 \
-  --table finance.transactions \
-  --grace-period 6h
-```
+- **LocalFS** — HadoopCatalog-style directory layout, for tests + air-gapped deploys.
+- **AWS Glue** — IAM role; cross-account via STS.
+- **Hive Metastore** — Thrift, with optional Kerberos via keytab.
+- **Iceberg REST** — Polaris, Databricks Unity, Tabular, Nessie. Bearer + OAuth2 client-credentials.
 
-Sample for PII and write an Atlas-importable JSON payload:
+## Storage backends
 
-```
-iceberg-sentry pii \
-  --catalog glue --namespace finance \
-  --table finance.transactions \
-  --atlas-output atlas-import-$(date +%Y%m%d).json
-```
+`s3://`, `hdfs://` (WebHDFS), `file://`. ADLS Gen2 / GCS via S3-compatible endpoints today; native drivers on the roadmap.
 
-Capture a baseline, run compaction, then compare:
+## Wire it into CI
 
-```
-iceberg-sentry bench start   --catalog rest --rest http://localhost:8181 --table finance.transactions --tag pre-compact
-# run your CALL ... rewrite_data_files
-iceberg-sentry bench compare --catalog rest --rest http://localhost:8181 --table finance.transactions --tag pre-compact
-```
+```yaml
+- name: Iceberg health gate
+  run: |
+    iceberg-sentry audit \
+      --catalog glue --namespace finance \
+      --policy sentry.yaml \
+      --format sarif > iceberg.sarif
 
-Run the Migration Readiness Audit:
-
-```
-iceberg-sentry migration \
-  --catalog hive --hive hms.onprem:9083 \
-  --namespace finance
-```
-
-Snapshot Cost Timeline (cold-tier candidates flagged):
-
-```
-iceberg-sentry cost \
-  --catalog rest --rest http://localhost:8181 \
-  --table finance.transactions \
-  --cold-tier-days 90
+- uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: iceberg.sarif
+    category: iceberg-health
 ```
 
-Push metrics to Prometheus from a CronJob:
+Exit codes are stable and CI-friendly:
 
-```
-iceberg-sentry audit \
-  --catalog glue --namespace finance \
-  --format prometheus \
-  --push-gateway http://prometheus-pushgateway:9091 \
-  --push-job iceberg-sentry
-```
+| Code | Meaning                                    |
+|:----:|--------------------------------------------|
+|  0   | OK                                         |
+|  1   | WARNING (with `--fail-on warn`)            |
+|  2   | CRITICAL                                   |
+|  3   | Untagged PII found                         |
+|  4   | Tool / config error                        |
+|  5   | Catalog / storage connection failure       |
 
-Long-lived scrape exporter (ServiceMonitor-compatible):
+## Deploy in Kubernetes
 
-```
-iceberg-sentry export \
-  --catalog glue --namespace finance \
-  --listen :9400 --interval 5m
-```
-
-Polaris / Databricks Unity REST via OAuth2 client-credentials:
-
-```
-iceberg-sentry audit \
-  --catalog rest --rest https://polaris.example.com/api/catalog \
-  --rest-oauth-client-id "$CLIENT_ID" \
-  --rest-oauth-client-secret "$CLIENT_SECRET" \
-  --rest-oauth-token-url https://polaris.example.com/api/oauth/token \
-  --namespace finance
+```sh
+helm install sentry deploy/helm \
+  --set cronjob.enabled=true \
+  --set exporter.enabled=true \
+  --set serviceMonitor.enabled=true
 ```
 
-Hive Metastore with Kerberos:
-
-```
-iceberg-sentry audit \
-  --catalog hive --hive hms.example.com:9083 \
-  --hive-principal "iceberg-sentry@EXAMPLE.COM" \
-  --hive-keytab /etc/iceberg-sentry/sentry.keytab \
-  --namespace finance
-```
+Full manifests, Helm chart, and Grafana dashboard JSON under [`deploy/`](./deploy).
 
 ## Development
 
-Run the full suite:
-
-```
-go test -race ./...
-```
-
-Generate richer integration fixtures with pyiceberg:
-
-```
-pip install -r scripts/requirements.txt
-python scripts/gen_fixtures.py --root testdata/fixtures/generated
+```sh
+make test           # unit + race
+make lint           # gofmt + vet + golangci-lint
+make build          # static binary
+make fixtures       # pyiceberg-generated Iceberg tables
+make docker-dev     # container from source
+make bench          # perf benchmarks
 ```
 
-## Repository layout
+Go 1.23+ required.
+
+## Repo layout
 
 ```
-cmd/iceberg-sentry/    CLI entry point
+cmd/iceberg-sentry/       CLI entry point (version stamped at build)
 internal/
-  cli/                 cobra commands (audit, orphans, pii, bench, migration, cost, export, version)
-  iceberg/             metadata JSON + Avro manifest parsers
-  storage/             local, S3, WebHDFS storage backends
-  catalog/             LocalFS, Glue, Hive (Thrift+Kerberos), REST (OAuth2) adapters
-  scan/                orchestration: catalog → metadata → manifests → stats
-  health/              composite score + per-dimension diagnostics
-  bloom/               double-hashed Bloom filter for orphan tracking
-  writepattern/        streaming/batch classifier
-  orphans/             differential storage-vs-metadata scan
-  pii/                 Parquet row-group sampler + regex/entropy detector
-  migration/           HDFS → CDP Migration Readiness Audit
-  cost/                pluggable cost provider + snapshot cost timeline
-  metrics/             Prometheus exposition format + push gateway client
-  output/              text, json, SARIF, prometheus renderers
-  policy/              sentry.yaml parser and threshold application
-  exitcode/            shared exit-code constants
-examples/
-  sentry.yaml                       sample policy
-  github-actions/iceberg-health.yml SARIF + PR-comment workflow
+  cli/                    cobra commands (audit, orphans, pii, bench, migration, cost, export)
+  iceberg/                metadata JSON + Avro manifest parsers
+  storage/                local, S3, WebHDFS
+  catalog/                LocalFS, Glue, Hive (Thrift+Kerberos), REST (OAuth2)
+  scan/                   orchestration engine
+  health/                 composite scoring, per-dimension diagnostics
+  bloom/                  double-hashed Bloom filter
+  writepattern/           streaming/batch classifier
+  orphans/                differential storage↔metadata scan
+  pii/                    Parquet row-group sampler + regex/entropy
+  migration/              HDFS → CDP audit
+  cost/                   pluggable cost provider + snapshot timeline
+  metrics/                Prometheus exposition + push gateway
+  output/                 text · json · sarif · prometheus renderers
+  policy/                 sentry.yaml
 deploy/
-  k8s/                              raw CronJob + Deployment + ServiceMonitor
-  helm/                             Helm chart (Chart.yaml, values.yaml, templates/)
-  grafana-dashboard.json            ready-to-import dashboard
-scripts/gen_fixtures.py             pyiceberg integration-fixture generator
-testdata/integration/               docker-compose harness (MinIO + REST + HMS)
+  k8s/                    raw CronJob + Deployment + ServiceMonitor
+  helm/                   Helm chart
+  grafana-dashboard.json
+site/                     marketing site + 15-page documentation
+scripts/
+  gen_fixtures.py         pyiceberg integration fixtures
+  install.sh              curl-pipe-safe installer
 ```
+
+## Roadmap
+
+Phase 1 (foundation), Phase 2 (advanced auditing), and Phase 3 (Cloudera + operationalization) are shipped. Phase 4 — hosted SaaS MVP, Nessie branch-history, Slack/PagerDuty alerts, dbt + OpenMetadata/DataHub plugins — is the next milestone.
+
+See [`Iceberg_Sentry_Spec_v2.md`](./Iceberg_Sentry_Spec_v2.md) for the full product spec and [`CHANGELOG.md`](./CHANGELOG.md) for the release history.
+
+## Contributing
+
+Contributions welcome — see [`CONTRIBUTING.md`](./CONTRIBUTING.md). Everyone in the community is expected to follow the [Code of Conduct](./CODE_OF_CONDUCT.md). Security issues: please read [`SECURITY.md`](./SECURITY.md) and use GitHub Security Advisories, not public issues.
 
 ## License
 
-Apache 2.0 — see [LICENSE](./LICENSE).
+Apache 2.0. See [`LICENSE`](./LICENSE) and [`NOTICE`](./NOTICE).
