@@ -2,3 +2,5 @@ User-agent: *
 Allow: /
 
 Sitemap: https://jaybilgaye.github.io/iceberg-sentry/sitemap.xml
+
+# post-rename cache-buster: force Pages re-deploy
