@@ -24,16 +24,16 @@
 </p>
 
 <p align="center">
-  <a href="./site/docs/"><b>Docs</b></a> ·
-  <a href="./site/docs/quickstart.html"><b>Quickstart</b></a> ·
-  <a href="./site/examples.html"><b>Examples</b></a> ·
+  <a href="https://jaybilgaye.github.io/iceberg-sentry/docs/"><b>Docs</b></a> ·
+  <a href="https://jaybilgaye.github.io/iceberg-sentry/docs/quickstart.html"><b>Quickstart</b></a> ·
+  <a href="https://jaybilgaye.github.io/iceberg-sentry/examples.html"><b>Examples</b></a> ·
   <a href="./Iceberg_Sentry_Spec_v2.md"><b>Spec</b></a> ·
   <a href="https://github.com/jaybilgaye/iceberg-sentry/discussions"><b>Discussions</b></a> ·
   <a href="https://github.com/jaybilgaye/iceberg-sentry/releases"><b>Releases</b></a>
 </p>
 
 <p align="center">
-  <sub>Docs render as a static site under <a href="./site/"><code>site/</code></a>. Enable GitHub Pages (Settings → Pages → <code>main</code> / <code>site</code>) to serve them at <code>jaybilgaye.github.io/iceberg-sentry</code>, or read them locally with <code>make site-serve</code>.</sub>
+  <sub>Docs live at <a href="https://jaybilgaye.github.io/iceberg-sentry/"><code>jaybilgaye.github.io/iceberg-sentry</code></a>, published by the <a href="./.github/workflows/pages.yml">Pages workflow</a> from the <a href="./site/"><code>site/</code></a> directory. One-time setup: <em>Settings → Pages → Source: GitHub Actions</em>. Or read locally with <code>make site-serve</code>.</sub>
 </p>
 
 ```
@@ -213,13 +213,13 @@ That's the whole workflow. No config file, no compute cluster, no Spark session.
 
 <table>
 <tr><th align="left" width="140">Command</th><th align="left">What it does</th></tr>
-<tr><td><a href="./site/docs/audit.html"><code>audit</code></a></td>       <td>Score table health across six dimensions. The one you'll wire into CI.</td></tr>
-<tr><td><a href="./site/docs/orphans.html"><code>orphans</code></a></td>   <td>Find files in storage that no valid snapshot references.</td></tr>
-<tr><td><a href="./site/docs/pii.html"><code>pii</code></a></td>           <td>Stream-sample Parquet row groups for PII. Zero disk persistence.</td></tr>
-<tr><td><a href="./site/docs/bench.html"><code>bench</code></a></td>       <td>Capture a baseline; compare after maintenance. Measures compactions.</td></tr>
-<tr><td><a href="./site/docs/migration.html"><code>migration</code></a></td><td>HDFS → CDP Public Cloud migration readiness audit.</td></tr>
-<tr><td><a href="./site/docs/cost.html"><code>cost</code></a></td>         <td>Snapshot cost timeline + cold-tier candidates.</td></tr>
-<tr><td><a href="./site/docs/export.html"><code>export</code></a></td>     <td>Long-lived Prometheus `/metrics` + `/healthz` server.</td></tr>
+<tr><td><a href="https://jaybilgaye.github.io/iceberg-sentry/docs/audit.html"><code>audit</code></a></td>       <td>Score table health across six dimensions. The one you'll wire into CI.</td></tr>
+<tr><td><a href="https://jaybilgaye.github.io/iceberg-sentry/docs/orphans.html"><code>orphans</code></a></td>   <td>Find files in storage that no valid snapshot references.</td></tr>
+<tr><td><a href="https://jaybilgaye.github.io/iceberg-sentry/docs/pii.html"><code>pii</code></a></td>           <td>Stream-sample Parquet row groups for PII. Zero disk persistence.</td></tr>
+<tr><td><a href="https://jaybilgaye.github.io/iceberg-sentry/docs/bench.html"><code>bench</code></a></td>       <td>Capture a baseline; compare after maintenance. Measures compactions.</td></tr>
+<tr><td><a href="https://jaybilgaye.github.io/iceberg-sentry/docs/migration.html"><code>migration</code></a></td><td>HDFS → CDP Public Cloud migration readiness audit.</td></tr>
+<tr><td><a href="https://jaybilgaye.github.io/iceberg-sentry/docs/cost.html"><code>cost</code></a></td>         <td>Snapshot cost timeline + cold-tier candidates.</td></tr>
+<tr><td><a href="https://jaybilgaye.github.io/iceberg-sentry/docs/export.html"><code>export</code></a></td>     <td>Long-lived Prometheus `/metrics` + `/healthz` server.</td></tr>
 </table>
 
 ## Wire it into CI
@@ -333,7 +333,7 @@ helm install sentry deploy/helm \
 - ConfigMap holding `sentry.yaml` inline
 - ServiceAccount with pod-security defaults (`runAsNonRoot`, `readOnlyRootFilesystem`, dropped capabilities)
 
-Full chart reference: [docs / Deployment](./site/docs/deployment.html).
+Full chart reference: [docs / Deployment](https://jaybilgaye.github.io/iceberg-sentry/docs/deployment.html).
 
 </details>
 
